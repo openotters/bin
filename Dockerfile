@@ -1,0 +1,5 @@
+FROM scratch
+ARG TARGETOS
+ARG TARGETARCH
+COPY ${TARGETOS}_${TARGETARCH}/bin /bin
+COPY ${TARGETOS}_${TARGETARCH}/tool.json /tool.json
