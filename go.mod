@@ -7,7 +7,7 @@ require (
 	github.com/itchyny/gojq v0.12.18
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
-	github.com/openotters/agentfile v1.0.0-alpha.2
+	github.com/openotters/agentfile v1.0.0-alpha.3
 	github.com/u-root/u-root v0.16.0
 	mvdan.cc/sh/v3 v3.13.1
 	oras.land/oras-go/v2 v2.6.0
