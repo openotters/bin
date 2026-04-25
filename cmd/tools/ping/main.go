@@ -5,11 +5,11 @@ import (
 	"net"
 	"time"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(args string) (string, error) {
+	cli.Run(func(args string) (string, error) {
 		if args == "" {
 			return "", fmt.Errorf("usage: ping host")
 		}

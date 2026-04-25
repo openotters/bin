@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 	"github.com/u-root/u-root/pkg/core/gzip"
 )
 
 func main() {
-	wrap.RunCommand(gzip.New("gzip"))
+	cli.Exec(gzip.New("gzip"))
 }

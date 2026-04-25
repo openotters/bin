@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(tail)
+	cli.Run(tail)
 }
 
 func tail(args string) (string, error) {

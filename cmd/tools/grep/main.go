@@ -7,11 +7,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(args string) (string, error) {
+	cli.Run(func(args string) (string, error) {
 		parts := strings.SplitN(args, " ", 2)
 		if len(parts) < 2 {
 			return "", fmt.Errorf("usage: grep pattern file")

@@ -5,11 +5,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(args string) (string, error) {
+	cli.Run(func(args string) (string, error) {
 		dirs := strings.Fields(args)
 		if len(dirs) == 0 {
 			return "", fmt.Errorf("rmdir requires a directory argument")

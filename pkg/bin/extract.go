@@ -1,4 +1,4 @@
-package internal
+package bin
 
 import (
 	"archive/tar"
@@ -15,7 +15,7 @@ import (
 	"oras.land/oras-go/v2/content"
 )
 
-func ExtractBin(
+func Extract(
 	ctx context.Context, fetcher content.Fetcher, manifest v1.Manifest, fs billy.Filesystem, dest string,
 ) error {
 	info := Inspect(manifest)
@@ -38,7 +38,7 @@ func extractBin(
 
 			data, err := io.ReadAll(rc)
 			if err != nil {
-				return err
+				return fmt.Errorf("reading bin layer: %w", err)
 			}
 
 			return writeExecutable(fs, dest, data)
@@ -112,7 +112,7 @@ func extractBinFromTar(
 func writeExecutable(fs billy.Filesystem, path string, data []byte) error {
 	f, err := fs.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
 	if err != nil {
-		return err
+		return fmt.Errorf("opening %s: %w", path, err)
 	}
 
 	_, err = f.Write(data)
@@ -121,5 +121,9 @@ func writeExecutable(fs billy.Filesystem, path string, data []byte) error {
 		err = closeErr
 	}
 
-	return err
+	if err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+
+	return nil
 }

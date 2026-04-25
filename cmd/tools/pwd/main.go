@@ -3,11 +3,11 @@ package main
 import (
 	"os"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(_ string) (string, error) {
+	cli.Run(func(_ string) (string, error) {
 		return os.Getwd()
 	})
 }

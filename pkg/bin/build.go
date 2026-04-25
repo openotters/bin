@@ -1,4 +1,4 @@
-package internal
+package bin
 
 import (
 	"bytes"
@@ -13,10 +13,11 @@ import (
 	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/openotters/agentfile/spec"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/errdef"
+
+	"github.com/openotters/agentfile/spec"
 )
 
 type BuildOptions struct {
@@ -66,9 +67,10 @@ func BuildIndex(
 	}
 
 	index := v1.Index{
-		Versioned: specs.Versioned{SchemaVersion: 2},
-		MediaType: v1.MediaTypeImageIndex,
-		Manifests: manifests,
+		Versioned:    specs.Versioned{SchemaVersion: 2},
+		MediaType:    v1.MediaTypeImageIndex,
+		ArtifactType: spec.BinArtifactType,
+		Manifests:    manifests,
 	}
 
 	indexData, err := json.Marshal(index)
@@ -149,11 +151,12 @@ func buildPlatform(
 	}
 
 	manifest := v1.Manifest{
-		Versioned:   specs.Versioned{SchemaVersion: 2},
-		MediaType:   v1.MediaTypeImageManifest,
-		Config:      configDesc,
-		Layers:      layers,
-		Annotations: annotations,
+		Versioned:    specs.Versioned{SchemaVersion: 2},
+		MediaType:    v1.MediaTypeImageManifest,
+		ArtifactType: spec.BinArtifactType,
+		Config:       configDesc,
+		Layers:       layers,
+		Annotations:  annotations,
 	}
 
 	manifestData, err := json.Marshal(manifest)
@@ -182,11 +185,16 @@ func buildPlatform(
 func readFile(fs billy.Filesystem, path string) ([]byte, error) {
 	f, err := fs.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("opening %s: %w", path, err)
 	}
 	defer f.Close()
 
-	return io.ReadAll(f)
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	return data, nil
 }
 
 func pushBlob(

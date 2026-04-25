@@ -7,9 +7,56 @@ includes:
     install: .tk/install/Taskfile.yaml
     license: .tk/license/Taskfile.yaml
     trufflehog: .tk/trufflehog/Taskfile.yaml
-    
+
 
 dotenv:
   - .env
   - PROJECT
   - .env.default
+
+tasks:
+  test:
+    desc: Run unit tests with the race detector.
+    cmds:
+      - go test -race ./...
+
+  clean:
+    desc: Remove build artifacts and clear the test cache.
+    cmds:
+      - rm -rf bin dist
+      - go clean -testcache
+
+  tools:publish:
+    desc: Cross-build every tool (or just TOOL=name) for darwin/linux × arm64/amd64 and push to REGISTRY.
+    vars:
+      OTTERS: '{{.OTTERS | default "otters"}}'
+      REGISTRY: '{{.REGISTRY | default "ghcr.io/openotters/tools"}}'
+      OUT_DIR: '{{.OUT_DIR | default "/tmp/otters-bin"}}'
+      TOOLS:
+        sh: '{{ if .TOOL }}echo {{.TOOL}}{{ else }}ls cmd/tools{{ end }}'
+    cmds:
+      - mkdir -p {{.OUT_DIR}}
+      - for: {var: TOOLS}
+        task: tools:publish:one
+        vars:
+          TOOL: '{{.ITEM}}'
+          OTTERS: '{{.OTTERS}}'
+          REGISTRY: '{{.REGISTRY}}'
+          OUT_DIR: '{{.OUT_DIR}}'
+
+  tools:publish:one:
+    internal: true
+    requires:
+      vars: [TOOL, OTTERS, REGISTRY, OUT_DIR]
+    cmds:
+      - GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o {{.OUT_DIR}}/{{.TOOL}}-darwin-arm64 ./cmd/tools/{{.TOOL}}
+      - GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o {{.OUT_DIR}}/{{.TOOL}}-darwin-amd64 ./cmd/tools/{{.TOOL}}
+      - GOOS=linux  GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o {{.OUT_DIR}}/{{.TOOL}}-linux-arm64  ./cmd/tools/{{.TOOL}}
+      - GOOS=linux  GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o {{.OUT_DIR}}/{{.TOOL}}-linux-amd64  ./cmd/tools/{{.TOOL}}
+      - >-
+        {{.OTTERS}} bin build -n {{.TOOL}} -t {{.REGISTRY}}/{{.TOOL}}:latest
+        darwin/arm64:{{.OUT_DIR}}/{{.TOOL}}-darwin-arm64
+        darwin/amd64:{{.OUT_DIR}}/{{.TOOL}}-darwin-amd64
+        linux/arm64:{{.OUT_DIR}}/{{.TOOL}}-linux-arm64
+        linux/amd64:{{.OUT_DIR}}/{{.TOOL}}-linux-amd64
+      - "{{.OTTERS}} bin push {{.REGISTRY}}/{{.TOOL}}:latest"

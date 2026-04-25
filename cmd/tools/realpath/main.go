@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(args string) (string, error) {
+	cli.Run(func(args string) (string, error) {
 		fields := strings.Fields(args)
 		if len(fields) == 0 {
 			return "", fmt.Errorf("missing operand")

@@ -3,11 +3,11 @@ package main
 import (
 	"strings"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(args string) (string, error) {
+	cli.Run(func(args string) (string, error) {
 		line := "y"
 		if args != "" {
 			line = args

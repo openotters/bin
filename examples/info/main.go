@@ -1,12 +1,14 @@
-// Toolinfo pulls a tool image from a registry and prints its metadata (bin path, description, usage).
+// Info pulls a tool image from a registry and prints its metadata
+// (bin path, description, usage text). Rich view — includes the
+// USAGE.md body if declared.
 //
 // Usage:
 //
-//	go run ./cmd/info/ [-plain-http] <registry-ref>
+//	go run ./examples/info/ [-plain-http] <registry-ref>
 //
 // Example:
 //
-//	go run ./cmd/info/ ghcr.io/openotters/tools/wget:latest
+//	go run ./examples/info/ ghcr.io/openotters/tools/wget:latest
 package main
 
 import (
@@ -15,10 +17,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/openotters/bin/internal"
-	oci2 "github.com/openotters/bin/internal/oci"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/memory"
+
+	"github.com/openotters/agentfile/oci"
+	"github.com/openotters/agentfile/spec"
+	"github.com/openotters/bin/pkg/bin"
 )
 
 func main() {
@@ -27,26 +31,23 @@ func main() {
 
 	args := flag.Args()
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: toolinfo [-plain-http] <registry-ref>")
+		fmt.Fprintln(os.Stderr, "usage: info [-plain-http] <registry-ref>")
 		os.Exit(1)
 	}
 
-	ref := args[0]
+	ref := spec.ParseReference(args[0])
 
-	var opts []oci2.RemoteRepositoryOption
+	var opts []oci.RemoteRepositoryOption
 	if *plainHTTP {
-		opts = append(opts, oci2.WithPlainHTTP)
+		opts = append(opts, oci.WithPlainHTTP)
 	}
 
-	repo, err := oci2.NewRemoteRepository(ref, opts...)
+	repo, err := oci.NewRemoteRepository(ref, opts...)
 	if err != nil {
 		fatal(err)
 	}
 
-	tag := repo.Reference.Reference
-	if tag == "" {
-		tag = "latest"
-	}
+	tag := ref.Tag
 
 	store := memory.New()
 
@@ -55,12 +56,12 @@ func main() {
 		fatal(err)
 	}
 
-	manifest, err := oci2.ResolveManifest(context.Background(), repo, must(repo.Resolve(context.Background(), tag)))
+	manifest, err := oci.ResolveManifest(context.Background(), repo, must(repo.Resolve(context.Background(), tag)))
 	if err != nil {
 		fatal(err)
 	}
 
-	info := internal.Inspect(*manifest)
+	info := bin.Inspect(*manifest)
 
 	fmt.Fprintf(os.Stdout, "name:        %s\n", info.Name)
 	fmt.Fprintf(os.Stdout, "path:        %s\n", info.Path)
@@ -79,7 +80,7 @@ func main() {
 	}
 
 	if info.UsagePath != "" {
-		usage, usageErr := internal.FetchUsage(context.Background(), store, *manifest)
+		usage, usageErr := bin.FetchUsage(context.Background(), store, *manifest)
 		if usageErr != nil {
 			fatal(usageErr)
 		}

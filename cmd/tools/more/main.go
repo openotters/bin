@@ -3,11 +3,11 @@ package main
 import (
 	"os"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(args string) (string, error) {
+	cli.Run(func(args string) (string, error) {
 		data, err := os.ReadFile(args)
 		if err != nil {
 			return "", err

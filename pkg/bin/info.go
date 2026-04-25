@@ -1,4 +1,4 @@
-package internal
+package bin
 
 import (
 	"path/filepath"

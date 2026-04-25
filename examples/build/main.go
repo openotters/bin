@@ -1,13 +1,13 @@
-// build builds per-platform OCI tool images and assembles an image index.
+// Build builds per-platform OCI tool images and assembles an image index.
 // Authentication uses Docker credential helpers (~/.docker/config.json).
 //
 // Usage:
 //
-//	go run ./cmd/build/ [-plain-http] -name <name> [-desc <desc>] [-usage <text>] <ref> <os/arch:path> [...]
+//	go run ./examples/build/ [-plain-http] -name <name> [-desc <desc>] [-usage <text>] <ref> <os/arch:path> [...]
 //
 // Example:
 //
-//	go run ./cmd/build/ -name jq -desc "JSON processor" \
+//	go run ./examples/build/ -name jq -desc "JSON processor" \
 //	  ghcr.io/openotters/tools/jq:0.1.0 \
 //	  linux/amd64:bin/jq-linux-amd64 \
 //	  linux/arm64:bin/jq-linux-arm64 \
@@ -23,10 +23,12 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v6/osfs"
-	"github.com/openotters/bin/internal"
-	"github.com/openotters/bin/internal/oci"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/memory"
+
+	"github.com/openotters/agentfile/oci"
+	"github.com/openotters/agentfile/spec"
+	"github.com/openotters/bin/pkg/bin"
 )
 
 func main() {
@@ -44,9 +46,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	ref := args[0]
+	ref := spec.ParseReference(args[0])
 
-	var platforms []internal.PlatformBuild
+	var platforms []bin.PlatformBuild
 
 	for _, p := range args[1:] {
 		osArch, binPath, ok := strings.Cut(p, ":")
@@ -61,7 +63,7 @@ func main() {
 
 		srcDir, _ := filepath.Abs(filepath.Dir(binPath))
 
-		platforms = append(platforms, internal.PlatformBuild{
+		platforms = append(platforms, bin.PlatformBuild{
 			OS:      goos,
 			Arch:    goarch,
 			BinPath: filepath.Base(binPath),
@@ -71,7 +73,7 @@ func main() {
 
 	store := memory.New()
 
-	digest, err := internal.BuildIndex(context.Background(), internal.BuildOptions{
+	digest, err := bin.BuildIndex(context.Background(), bin.BuildOptions{
 		Name:        *name,
 		BinPath:     filepath.Base(args[1][strings.Index(args[1], ":")+1:]),
 		Description: *desc,
@@ -91,10 +93,7 @@ func main() {
 		fatal(err)
 	}
 
-	tag := "latest"
-	if t := oci.ParseTag(ref); t != "" {
-		tag = t
-	}
+	tag := ref.Tag
 
 	_, err = oras.Copy(context.Background(), store, "latest", repo, tag, oras.DefaultCopyOptions)
 	if err != nil {

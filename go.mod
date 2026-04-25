@@ -1,14 +1,15 @@
 module github.com/openotters/bin
 
-go 1.26.1
+go 1.26.2
 
 require (
 	github.com/go-git/go-billy/v6 v6.0.0-20260328065524-593ae452e14d
 	github.com/itchyny/gojq v0.12.18
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
-	github.com/openotters/agentfile v0.0.0-20260406011055-e0cdbf84b7a6
+	github.com/openotters/agentfile v1.0.0-alpha
 	github.com/u-root/u-root v0.16.0
+	mvdan.cc/sh/v3 v3.13.1
 	oras.land/oras-go/v2 v2.6.0
 )
 
@@ -219,6 +220,7 @@ require (
 	golang.org/x/mod v0.34.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/term v0.41.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect

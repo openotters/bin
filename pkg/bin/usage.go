@@ -1,4 +1,4 @@
-package internal
+package bin
 
 import (
 	"context"
@@ -33,7 +33,7 @@ func fetchLayerContent(
 
 			data, err := io.ReadAll(rc)
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("reading layer %s: %w", path, err)
 			}
 
 			return string(data), nil

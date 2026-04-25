@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 //nolint:gochecknoglobals // POSIX format map
@@ -16,7 +16,7 @@ var fmtMap = map[string]string{
 }
 
 func main() {
-	wrap.Run(func(args string) (string, error) {
+	cli.Run(func(args string) (string, error) {
 		now := time.Now().UTC()
 		if args == "" {
 			return now.Format(time.RFC3339), nil

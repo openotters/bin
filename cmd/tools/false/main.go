@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(_ string) (string, error) {
+	cli.Run(func(_ string) (string, error) {
 		return "", fmt.Errorf("false")
 	})
 }

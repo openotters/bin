@@ -7,11 +7,11 @@ import (
 
 	"github.com/itchyny/gojq"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(args string) (string, error) {
+	cli.Run(func(args string) (string, error) {
 		parts := strings.SplitN(args, "\n", 2)
 		if len(parts) < 2 {
 			return "", fmt.Errorf("usage: first line is the jq expression, rest is JSON input")

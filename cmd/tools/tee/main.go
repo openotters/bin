@@ -5,11 +5,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(args string) (string, error) {
+	cli.Run(func(args string) (string, error) {
 		lines := strings.SplitN(args, "\n", 2)
 		if len(lines) < 2 {
 			return "", fmt.Errorf("usage: first line is filename(s), rest is content")

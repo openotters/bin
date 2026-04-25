@@ -5,11 +5,11 @@ import (
 	"os"
 	"os/user"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(_ string) (string, error) {
+	cli.Run(func(_ string) (string, error) {
 		u, err := user.Current()
 		if err != nil {
 			return "", err

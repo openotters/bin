@@ -1,15 +1,17 @@
-package internal_test
+package bin_test
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"testing"
 
+	"github.com/go-git/go-billy/v6"
 	"github.com/go-git/go-billy/v6/memfs"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openotters/agentfile/spec"
-	"github.com/openotters/bin/internal"
+	"github.com/openotters/bin/pkg/bin"
 	"oras.land/oras-go/v2/content/memory"
 )
 
@@ -23,7 +25,7 @@ func TestBuild_Minimal(t *testing.T) {
 
 	store := memory.New()
 
-	digest, err := internal.Build(context.Background(), internal.BuildOptions{
+	digest, err := bin.Build(context.Background(), bin.BuildOptions{
 		Name:    "jq",
 		BinPath: "jq",
 	}, src, store)
@@ -46,7 +48,7 @@ func TestBuild_WithDescriptionAndUsage(t *testing.T) {
 
 	store := memory.New()
 
-	_, err := internal.Build(context.Background(), internal.BuildOptions{
+	_, err := bin.Build(context.Background(), bin.BuildOptions{
 		Name:        "jq",
 		BinPath:     "jq",
 		Description: "Extract fields from JSON",
@@ -66,7 +68,7 @@ func TestBuild_WithDescriptionAndUsage(t *testing.T) {
 		t.Fatalf("manifest error: %v", err)
 	}
 
-	info := internal.Inspect(*manifest)
+	info := bin.Inspect(*manifest)
 
 	if info.Name != "jq" {
 		t.Errorf("name = %q, want jq", info.Name)
@@ -91,7 +93,7 @@ func TestBuildExtract_Roundtrip(t *testing.T) {
 
 	store := memory.New()
 
-	_, err := internal.Build(context.Background(), internal.BuildOptions{
+	_, err := bin.Build(context.Background(), bin.BuildOptions{
 		Name:        "jq",
 		BinPath:     "jq",
 		Description: "JSON processor",
@@ -112,7 +114,7 @@ func TestBuildExtract_Roundtrip(t *testing.T) {
 	}
 
 	dst := memfs.New()
-	if extractErr := internal.ExtractBin(context.Background(), store, *manifest, dst, "usr/bin/jq"); extractErr != nil {
+	if extractErr := bin.Extract(context.Background(), store, *manifest, dst, "usr/bin/jq"); extractErr != nil {
 		t.Fatalf("extract error: %v", extractErr)
 	}
 
@@ -129,13 +131,84 @@ func TestBuildExtract_Roundtrip(t *testing.T) {
 		t.Errorf("binary content = %q", string(buf[:n]))
 	}
 
-	usage, err := internal.FetchUsage(context.Background(), store, *manifest)
+	usage, err := bin.FetchUsage(context.Background(), store, *manifest)
 	if err != nil {
 		t.Fatalf("usage error: %v", err)
 	}
 
 	if usage != "First line is the expression." {
 		t.Errorf("usage = %q", usage)
+	}
+}
+
+func TestBuildIndex_MultiPlatform(t *testing.T) {
+	t.Parallel()
+
+	mkSrc := func(content string) billy.Filesystem {
+		fs := memfs.New()
+		f, _ := fs.Create("jq")
+		_, _ = f.Write([]byte(content))
+		_ = f.Close()
+		return fs
+	}
+
+	store := memory.New()
+	platforms := []bin.PlatformBuild{
+		{OS: "linux", Arch: "amd64", Src: mkSrc("linux-amd64-bytes")},
+		{OS: "darwin", Arch: "arm64", Src: mkSrc("darwin-arm64-bytes")},
+	}
+
+	idxDigest, err := bin.BuildIndex(context.Background(), bin.BuildOptions{
+		Name:    "jq",
+		BinPath: "jq",
+	}, platforms, store)
+	if err != nil {
+		t.Fatalf("BuildIndex: %v", err)
+	}
+
+	if idxDigest == nil {
+		t.Fatal("nil index digest")
+	}
+
+	desc, err := store.Resolve(context.Background(), "latest")
+	if err != nil {
+		t.Fatalf("resolving latest: %v", err)
+	}
+
+	if desc.MediaType != v1.MediaTypeImageIndex {
+		t.Fatalf("MediaType = %q, want image index", desc.MediaType)
+	}
+
+	rc, err := store.Fetch(context.Background(), desc)
+	if err != nil {
+		t.Fatalf("fetch index: %v", err)
+	}
+	defer rc.Close()
+
+	data, _ := io.ReadAll(rc)
+
+	var index v1.Index
+	if unmarshalErr := json.Unmarshal(data, &index); unmarshalErr != nil {
+		t.Fatalf("unmarshal index: %v", unmarshalErr)
+	}
+
+	if got := len(index.Manifests); got != 2 {
+		t.Fatalf("manifests = %d, want 2", got)
+	}
+
+	for i, want := range []string{"linux/amd64", "darwin/arm64"} {
+		got := fmt.Sprintf("%s/%s", index.Manifests[i].Platform.OS, index.Manifests[i].Platform.Architecture)
+		if got != want {
+			t.Errorf("manifest[%d] platform = %q, want %q", i, got, want)
+		}
+	}
+
+	// Re-pushing the same platform set must succeed (alreadyExists path).
+	if _, rePushErr := bin.BuildIndex(context.Background(), bin.BuildOptions{
+		Name:    "jq",
+		BinPath: "jq",
+	}, platforms, store); rePushErr != nil {
+		t.Fatalf("BuildIndex (re-push): %v", rePushErr)
 	}
 }
 

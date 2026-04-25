@@ -5,11 +5,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(args string) (string, error) {
+	cli.Run(func(args string) (string, error) {
 		var text string
 
 		data, err := os.ReadFile(args)

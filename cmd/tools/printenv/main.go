@@ -4,11 +4,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/openotters/bin/internal/wrap"
+	"github.com/openotters/bin/internal/cli"
 )
 
 func main() {
-	wrap.Run(func(args string) (string, error) {
+	cli.Run(func(args string) (string, error) {
 		if args == "" {
 			return strings.Join(os.Environ(), "\n"), nil
 		}

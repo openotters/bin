@@ -5,7 +5,8 @@
 .task
 
 ### Install ###
-bin
+# Anchor to repo root so pkg/bin/ (the public Go package) isn't ignored.
+/bin
 
 ### dotenv ###
 .env
@@ -359,3 +360,21 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
+
+### Local additions (stray tool binaries at repo root) ###
+# Prefer producing artifacts under ./bin/ or ./dist/ (already ignored).
+/base64
+/cat
+/chmod
+/cp
+/find
+/gzip
+/ls
+/mkdir
+/mktemp
+/mv
+/rm
+/sh
+/shasum
+/touch
+/xargs
