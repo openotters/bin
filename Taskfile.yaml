@@ -55,6 +55,7 @@ tasks:
       - GOOS=linux  GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o {{.OUT_DIR}}/{{.TOOL}}-linux-amd64  ./cmd/tools/{{.TOOL}}
       - >-
         {{.OTTERS}} bin build -n {{.TOOL}} -t {{.REGISTRY}}/{{.TOOL}}:latest
+        -s "{{.SOURCE | default "https://github.com/openotters/bintool"}}"
         darwin/arm64:{{.OUT_DIR}}/{{.TOOL}}-darwin-arm64
         darwin/amd64:{{.OUT_DIR}}/{{.TOOL}}-darwin-amd64
         linux/arm64:{{.OUT_DIR}}/{{.TOOL}}-linux-arm64

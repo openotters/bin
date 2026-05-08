@@ -212,18 +212,32 @@ func TestBuildIndex_MultiPlatform(t *testing.T) {
 	}
 }
 
+// resolveManifest fetches the bytes at desc and decodes them as a
+// v1.Manifest. When desc points at an index (Build now always
+// produces one — Build wraps BuildIndex with a single host-
+// platform entry), the helper follows the first child entry to
+// the actual manifest blob. Tests rely on this so they can call
+// Build / BuildIndex interchangeably and inspect the same shape.
 func resolveManifest(t *testing.T, store *memory.Store, desc v1.Descriptor) (*v1.Manifest, error) {
 	t.Helper()
 
-	rc, err := store.Fetch(context.Background(), desc)
+	data, err := fetchBytes(store, desc)
 	if err != nil {
 		return nil, err
 	}
-	defer rc.Close()
 
-	data, err := io.ReadAll(rc)
-	if err != nil {
-		return nil, err
+	if isIndexMediaType(desc.MediaType) {
+		var index v1.Index
+		if unmarshalErr := json.Unmarshal(data, &index); unmarshalErr != nil {
+			return nil, fmt.Errorf("decode index: %w", unmarshalErr)
+		}
+		if len(index.Manifests) == 0 {
+			return nil, fmt.Errorf("index has no manifests")
+		}
+		data, err = fetchBytes(store, index.Manifests[0])
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var manifest v1.Manifest
@@ -232,4 +246,18 @@ func resolveManifest(t *testing.T, store *memory.Store, desc v1.Descriptor) (*v1
 	}
 
 	return &manifest, nil
+}
+
+func fetchBytes(store *memory.Store, desc v1.Descriptor) ([]byte, error) {
+	rc, err := store.Fetch(context.Background(), desc)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+
+	return io.ReadAll(rc)
+}
+
+func isIndexMediaType(mt string) bool {
+	return mt == v1.MediaTypeImageIndex
 }

@@ -27,7 +27,31 @@ func extractBin(
 	ctx context.Context, fetcher content.Fetcher, layers []v1.Descriptor,
 	fs billy.Filesystem, binPath string, dest string,
 ) error {
+	// Pass 1: tar/tar+gzip layers — Docker-image-shaped bin images
+	// store the binary inside a real rootfs layer, so unpack first.
+	// Earlier (pre-fix) bin builds wrote the binary as a raw blob
+	// with AnnotationTitle set; pass 2 below preserves backwards-
+	// compat with those.
 	for _, layer := range layers {
+		if !strings.Contains(layer.MediaType, "tar") {
+			continue
+		}
+
+		found, err := extractBinFromTar(ctx, fetcher, layer, fs, binPath, dest)
+		if err != nil {
+			return err
+		}
+
+		if found {
+			return nil
+		}
+	}
+
+	for _, layer := range layers {
+		if strings.Contains(layer.MediaType, "tar") {
+			continue
+		}
+
 		title := layer.Annotations[v1.AnnotationTitle]
 		if title == binPath || filepath.Base(title) == filepath.Base(binPath) {
 			rc, err := fetcher.Fetch(ctx, layer)
@@ -42,21 +66,6 @@ func extractBin(
 			}
 
 			return writeExecutable(fs, dest, data)
-		}
-	}
-
-	for _, layer := range layers {
-		if !strings.Contains(layer.MediaType, "tar") {
-			continue
-		}
-
-		found, err := extractBinFromTar(ctx, fetcher, layer, fs, binPath, dest)
-		if err != nil {
-			return err
-		}
-
-		if found {
-			return nil
 		}
 	}
 
