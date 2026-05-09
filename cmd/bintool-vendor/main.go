@@ -40,8 +40,17 @@ type Descriptor struct {
 	URLTemplate     string            `yaml:"url_template"`
 	Archive         string            `yaml:"archive"` // "tar.gz" | "tar" | "zip" | "raw"
 	BinaryInArchive string            `yaml:"binary_in_archive"`
-	Checksums       map[string]string `yaml:"checksums"` // key: "<os>/<arch>"
+	Checksums       map[string]string `yaml:"checksums"` // key: "<os>/<arch>" (Go convention, e.g. darwin/arm64)
 	Usage           string            `yaml:"usage"`
+
+	// Optional remappings used during URL substitution when the
+	// upstream uses different os/arch tokens than Go's GOOS/GOARCH.
+	// Example: jq publishes "macos" instead of "darwin", so the
+	// jq.yaml descriptor sets `os_alias: { darwin: macos }`.
+	// The `os/arch` keys in `checksums` always use Go conventions —
+	// aliases only affect URL templating.
+	OSAlias   map[string]string `yaml:"os_alias"`
+	ArchAlias map[string]string `yaml:"arch_alias"`
 }
 
 // Platforms we always build for. Matches the existing tools:publish target.
@@ -203,6 +212,12 @@ func (d *Descriptor) renderURL(osName, arch string) (string, error) {
 	t, err := template.New("url").Parse(d.URLTemplate)
 	if err != nil {
 		return "", err
+	}
+	if alias, ok := d.OSAlias[osName]; ok {
+		osName = alias
+	}
+	if alias, ok := d.ArchAlias[arch]; ok {
+		arch = alias
 	}
 	var sb strings.Builder
 	err = t.Execute(&sb, map[string]string{
