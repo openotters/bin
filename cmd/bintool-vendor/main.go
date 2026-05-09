@@ -4,12 +4,16 @@
 // `otters bin build` (and optionally `otters bin push`) to package the
 // result as an OCI BIN image.
 //
+// The descriptor schema supports multiple versions per tool. Top-level
+// fields are defaults; each entry under `versions:` may override any
+// of them. Each version is published as its own image with one tag per
+// alias declared on it. The first entry in `versions:` implicitly gets
+// the `latest` alias if no other version claims it.
+//
 // Usage:
 //
-//	bintool-vendor -descriptor vendor/yaegi.yaml -registry ghcr.io/openotters/tools \
-//	    [-out /tmp/otters-bin] [-otters otters] [-push]
-//
-// Drives the `tools:vendor:publish` Taskfile target.
+//	bintool-vendor -descriptor vendor/jq.yaml -registry ghcr.io/openotters/tools \
+//	    [-version 1.8.1] [-out /tmp/otters-bin] [-otters otters] [-push]
 package main
 
 import (
@@ -32,25 +36,60 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Descriptor is one tool's full vendor manifest. Top-level fields are
+// shared defaults; per-version overrides live in `Versions[]`. Maps
+// (`OSAlias`, `ArchAlias`, `Checksums`) replace wholesale, not merge.
 type Descriptor struct {
-	Name            string            `yaml:"name"`
-	Version         string            `yaml:"version"`
+	// Identity (top-level only — versions can't change the tool name).
+	Name string `yaml:"name"`
+
+	// Defaults inherited by every version unless overridden.
 	Description     string            `yaml:"description"`
 	Source          string            `yaml:"source"`
+	Usage           string            `yaml:"usage"`
 	URLTemplate     string            `yaml:"url_template"`
 	Archive         string            `yaml:"archive"` // "tar.gz" | "tar" | "zip" | "raw"
 	BinaryInArchive string            `yaml:"binary_in_archive"`
-	Checksums       map[string]string `yaml:"checksums"` // key: "<os>/<arch>" (Go convention, e.g. darwin/arm64)
-	Usage           string            `yaml:"usage"`
+	OSAlias         map[string]string `yaml:"os_alias"`
+	ArchAlias       map[string]string `yaml:"arch_alias"`
 
-	// Optional remappings used during URL substitution when the
-	// upstream uses different os/arch tokens than Go's GOOS/GOARCH.
-	// Example: jq publishes "macos" instead of "darwin", so the
-	// jq.yaml descriptor sets `os_alias: { darwin: macos }`.
-	// The `os/arch` keys in `checksums` always use Go conventions —
-	// aliases only affect URL templating.
-	OSAlias   map[string]string `yaml:"os_alias"`
-	ArchAlias map[string]string `yaml:"arch_alias"`
+	Versions []VersionEntry `yaml:"versions"`
+}
+
+// VersionEntry overrides the descriptor defaults for one version.
+// Every field is optional — empty values inherit the top-level
+// descriptor — except Version and Checksums.
+type VersionEntry struct {
+	Version string   `yaml:"version"`
+	Aliases []string `yaml:"aliases"`
+
+	Description     string            `yaml:"description"`
+	Usage           string            `yaml:"usage"`
+	URLTemplate     string            `yaml:"url_template"`
+	Archive         string            `yaml:"archive"`
+	BinaryInArchive string            `yaml:"binary_in_archive"`
+	OSAlias         map[string]string `yaml:"os_alias"`
+	ArchAlias       map[string]string `yaml:"arch_alias"`
+
+	Checksums map[string]string `yaml:"checksums"` // key: "<os>/<arch>" (Go convention)
+}
+
+// Resolved is one version flattened into the same shape the
+// download/extract/build code consumes — defaults already merged in,
+// final tag list computed.
+type Resolved struct {
+	Name            string
+	Description     string
+	Source          string
+	Usage           string
+	Version         string
+	URLTemplate     string
+	Archive         string
+	BinaryInArchive string
+	OSAlias         map[string]string
+	ArchAlias       map[string]string
+	Checksums       map[string]string
+	Tags            []string
 }
 
 // Platforms we always build for. Matches the existing tools:publish target.
@@ -66,6 +105,7 @@ var platforms = []struct {
 func main() {
 	var (
 		descriptorPath = flag.String("descriptor", "", "Path to the vendored-tool descriptor YAML")
+		versionRef     = flag.String("version", "", "Publish only this version (default: every version in the descriptor)")
 		registry       = flag.String("registry", "ghcr.io/openotters/tools", "Image registry prefix")
 		outDir         = flag.String("out", "/tmp/otters-bin", "Working directory for downloaded binaries")
 		ottersBin      = flag.String("otters", "otters", "Path to the otters CLI")
@@ -90,52 +130,75 @@ func main() {
 		fatal("creating out dir: %v", err)
 	}
 
-	// Download + extract per-platform binaries.
-	binaries := make(map[string]string, len(platforms)) // "os/arch" -> path
+	resolved, err := d.resolveVersions(*versionRef)
+	if err != nil {
+		fatal("resolving versions: %v", err)
+	}
+
+	for _, r := range resolved {
+		if err := publish(r, *registry, *outDir, *ottersBin, *push); err != nil {
+			fatal("publishing %s@%s: %v", r.Name, r.Version, err)
+		}
+	}
+
+	fmt.Printf("ok — %s: %d version(s) built%s\n", d.Name, len(resolved), pushedNote(*push))
+}
+
+// publish handles one resolved version: download per platform, extract,
+// shell out to `otters bin build` with all platform binaries + every
+// alias as a separate -t flag, optionally push each tag.
+func publish(r Resolved, registry, outDir, ottersBin string, push bool) error {
+	binaries := make(map[string]string, len(platforms))
+
 	for _, p := range platforms {
 		key := p.OS + "/" + p.Arch
-		want, ok := d.Checksums[key]
+		want, ok := r.Checksums[key]
 		if !ok {
-			fatal("descriptor missing checksum for %s", key)
+			return fmt.Errorf("missing checksum for %s", key)
 		}
 
-		dest := filepath.Join(*outDir, fmt.Sprintf("%s-%s-%s", d.Name, p.OS, p.Arch))
-		if err := d.fetchPlatform(p.OS, p.Arch, want, dest); err != nil {
-			fatal("fetching %s: %v", key, err)
+		dest := filepath.Join(outDir, fmt.Sprintf("%s-%s-%s-%s", r.Name, r.Version, p.OS, p.Arch))
+		if err := r.fetchPlatform(p.OS, p.Arch, want, dest); err != nil {
+			return fmt.Errorf("fetching %s: %w", key, err)
 		}
 		if err := os.Chmod(dest, 0o755); err != nil {
-			fatal("chmod %s: %v", dest, err)
+			return fmt.Errorf("chmod %s: %w", dest, err)
 		}
 		binaries[key] = dest
 	}
 
-	// Compose the otters bin build invocation.
-	tag := fmt.Sprintf("%s/%s:latest", *registry, d.Name)
-	args := []string{"bin", "build", "-n", d.Name, "-t", tag}
-	if d.Description != "" {
-		args = append(args, "-d", d.Description)
+	args := []string{"bin", "build", "-n", r.Name}
+	for _, t := range r.Tags {
+		args = append(args, "-t", fmt.Sprintf("%s/%s:%s", registry, r.Name, t))
 	}
-	if d.Source != "" {
-		args = append(args, "-s", d.Source)
+	if r.Description != "" {
+		args = append(args, "-d", r.Description)
 	}
-	if d.Usage != "" {
-		args = append(args, "-u", d.Usage)
+	if r.Source != "" {
+		args = append(args, "-s", r.Source)
+	}
+	if r.Usage != "" {
+		args = append(args, "-u", r.Usage)
 	}
 	for _, p := range platforms {
 		key := p.OS + "/" + p.Arch
 		args = append(args, fmt.Sprintf("%s:%s", key, binaries[key]))
 	}
-	if err := runCmd(*ottersBin, args...); err != nil {
-		fatal("otters bin build: %v", err)
+	if err := runCmd(ottersBin, args...); err != nil {
+		return fmt.Errorf("otters bin build: %w", err)
 	}
 
-	if *push {
-		if err := runCmd(*ottersBin, "bin", "push", tag); err != nil {
-			fatal("otters bin push: %v", err)
+	if !push {
+		return nil
+	}
+
+	for _, t := range r.Tags {
+		ref := fmt.Sprintf("%s/%s:%s", registry, r.Name, t)
+		if err := runCmd(ottersBin, "bin", "push", ref); err != nil {
+			return fmt.Errorf("otters bin push %s: %w", ref, err)
 		}
 	}
-
-	fmt.Printf("ok — %s built (%d platforms)%s\n", tag, len(platforms), pushedNote(*push))
+	return nil
 }
 
 func pushedNote(pushed bool) string {
@@ -161,33 +224,126 @@ func (d *Descriptor) validate() error {
 	if d.Name == "" {
 		return errors.New("name is required")
 	}
-	if d.Version == "" {
-		return errors.New("version is required")
+	if len(d.Versions) == 0 {
+		return errors.New("versions: must contain at least one entry")
 	}
-	if d.URLTemplate == "" {
-		return errors.New("url_template is required")
-	}
-	switch d.Archive {
-	case "tar.gz", "tar", "zip", "raw":
-	default:
-		return fmt.Errorf("archive must be one of tar.gz|tar|zip|raw (got %q)", d.Archive)
-	}
-	if d.Archive != "raw" && d.BinaryInArchive == "" {
-		return errors.New("binary_in_archive is required for archived downloads")
-	}
-	if len(d.Checksums) == 0 {
-		return errors.New("checksums map is required")
+	seenVersion := map[string]bool{}
+	seenAlias := map[string]string{} // alias -> version it's claimed by
+	for _, v := range d.Versions {
+		if v.Version == "" {
+			return errors.New("every version entry needs `version`")
+		}
+		if seenVersion[v.Version] {
+			return fmt.Errorf("duplicate version %q", v.Version)
+		}
+		seenVersion[v.Version] = true
+
+		if len(v.Checksums) == 0 {
+			return fmt.Errorf("version %s: checksums map is required", v.Version)
+		}
+
+		// `version` itself can't appear as an alias — that's redundant
+		// and would cause `otters bin build` to be passed the same -t
+		// twice.
+		for _, a := range v.Aliases {
+			if a == v.Version {
+				return fmt.Errorf("version %s: alias %q duplicates the version itself", v.Version, a)
+			}
+			if prev, ok := seenAlias[a]; ok {
+				return fmt.Errorf("alias %q claimed by both versions %s and %s", a, prev, v.Version)
+			}
+			seenAlias[a] = v.Version
+		}
 	}
 	return nil
 }
 
-func (d *Descriptor) fetchPlatform(osName, arch, wantSHA, dest string) error {
-	url, err := d.renderURL(osName, arch)
+// resolveVersions merges per-version overrides over the descriptor
+// defaults and computes the final tag list per version. If versionRef
+// is non-empty, only that version is returned.
+func (d *Descriptor) resolveVersions(versionRef string) ([]Resolved, error) {
+	// First pass: determine whether any version explicitly claims `latest`
+	// so we know whether to add it implicitly to the first entry.
+	latestClaimed := false
+	for _, v := range d.Versions {
+		for _, a := range v.Aliases {
+			if a == "latest" {
+				latestClaimed = true
+			}
+		}
+	}
+
+	out := make([]Resolved, 0, len(d.Versions))
+	for i, v := range d.Versions {
+		if versionRef != "" && v.Version != versionRef {
+			continue
+		}
+		r := d.merge(v)
+		// First entry implicitly gets `latest` when nobody claims it.
+		if i == 0 && !latestClaimed {
+			r.Tags = append(r.Tags, "latest")
+		}
+		// Validate every required field is now present after merge.
+		switch {
+		case r.URLTemplate == "":
+			return nil, fmt.Errorf("version %s: url_template missing (no default, no override)", v.Version)
+		case r.Archive == "":
+			return nil, fmt.Errorf("version %s: archive missing (no default, no override)", v.Version)
+		case r.Archive != "raw" && r.BinaryInArchive == "":
+			return nil, fmt.Errorf("version %s: binary_in_archive required for archived downloads", v.Version)
+		}
+		out = append(out, r)
+	}
+
+	if versionRef != "" && len(out) == 0 {
+		return nil, fmt.Errorf("version %q not found in descriptor", versionRef)
+	}
+	return out, nil
+}
+
+// merge produces a Resolved by overlaying per-version fields on top of
+// the descriptor defaults. Non-empty version fields win; maps replace
+// wholesale (no deep merge).
+func (d *Descriptor) merge(v VersionEntry) Resolved {
+	pick := func(version, def string) string {
+		if version != "" {
+			return version
+		}
+		return def
+	}
+	pickMap := func(version, def map[string]string) map[string]string {
+		if version != nil {
+			return version
+		}
+		return def
+	}
+
+	tags := []string{v.Version}
+	tags = append(tags, v.Aliases...)
+
+	return Resolved{
+		Name:            d.Name,
+		Description:     pick(v.Description, d.Description),
+		Source:          d.Source,
+		Usage:           pick(v.Usage, d.Usage),
+		Version:         v.Version,
+		URLTemplate:     pick(v.URLTemplate, d.URLTemplate),
+		Archive:         pick(v.Archive, d.Archive),
+		BinaryInArchive: pick(v.BinaryInArchive, d.BinaryInArchive),
+		OSAlias:         pickMap(v.OSAlias, d.OSAlias),
+		ArchAlias:       pickMap(v.ArchAlias, d.ArchAlias),
+		Checksums:       v.Checksums,
+		Tags:            tags,
+	}
+}
+
+func (r *Resolved) fetchPlatform(osName, arch, wantSHA, dest string) error {
+	url, err := r.renderURL(osName, arch)
 	if err != nil {
 		return err
 	}
 
-	tmp, err := os.CreateTemp("", fmt.Sprintf("vendor-%s-%s-%s-*", d.Name, osName, arch))
+	tmp, err := os.CreateTemp("", fmt.Sprintf("vendor-%s-%s-%s-%s-*", r.Name, r.Version, osName, arch))
 	if err != nil {
 		return err
 	}
@@ -205,23 +361,23 @@ func (d *Descriptor) fetchPlatform(osName, arch, wantSHA, dest string) error {
 		return fmt.Errorf("checksum mismatch for %s: %w", url, err)
 	}
 
-	return d.extractBinary(tmp.Name(), dest)
+	return r.extractBinary(tmp.Name(), dest)
 }
 
-func (d *Descriptor) renderURL(osName, arch string) (string, error) {
-	t, err := template.New("url").Parse(d.URLTemplate)
+func (r *Resolved) renderURL(osName, arch string) (string, error) {
+	t, err := template.New("url").Parse(r.URLTemplate)
 	if err != nil {
 		return "", err
 	}
-	if alias, ok := d.OSAlias[osName]; ok {
+	if alias, ok := r.OSAlias[osName]; ok {
 		osName = alias
 	}
-	if alias, ok := d.ArchAlias[arch]; ok {
+	if alias, ok := r.ArchAlias[arch]; ok {
 		arch = alias
 	}
 	var sb strings.Builder
 	err = t.Execute(&sb, map[string]string{
-		"Version": d.Version,
+		"Version": r.Version,
 		"OS":      osName,
 		"Arch":    arch,
 	})
@@ -261,8 +417,8 @@ func verifySHA256(path, want string) error {
 	return nil
 }
 
-func (d *Descriptor) extractBinary(archivePath, dest string) error {
-	switch d.Archive {
+func (r *Resolved) extractBinary(archivePath, dest string) error {
+	switch r.Archive {
 	case "raw":
 		return copyFile(archivePath, dest)
 	case "tar.gz":
@@ -276,18 +432,18 @@ func (d *Descriptor) extractBinary(archivePath, dest string) error {
 			return err
 		}
 		defer func() { _ = gz.Close() }()
-		return extractFromTar(tar.NewReader(gz), d.BinaryInArchive, dest)
+		return extractFromTar(tar.NewReader(gz), r.BinaryInArchive, dest)
 	case "tar":
 		f, err := os.Open(archivePath)
 		if err != nil {
 			return err
 		}
 		defer func() { _ = f.Close() }()
-		return extractFromTar(tar.NewReader(f), d.BinaryInArchive, dest)
+		return extractFromTar(tar.NewReader(f), r.BinaryInArchive, dest)
 	case "zip":
-		return extractFromZip(archivePath, d.BinaryInArchive, dest)
+		return extractFromZip(archivePath, r.BinaryInArchive, dest)
 	}
-	return fmt.Errorf("unknown archive type %q", d.Archive)
+	return fmt.Errorf("unknown archive type %q", r.Archive)
 }
 
 func extractFromTar(tr *tar.Reader, wantPath, dest string) error {

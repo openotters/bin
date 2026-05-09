@@ -63,11 +63,12 @@ tasks:
       - "{{.OTTERS}} bin push {{.REGISTRY}}/{{.TOOL}}:latest"
 
   tools:vendor:publish:
-    desc: Package every vendored upstream binary in vendor/ (or just TOOL=name) and push to REGISTRY.
+    desc: Package every version of every vendored tool (or just TOOL=name [VERSION=x.y.z]) and push to REGISTRY.
     vars:
       OTTERS: '{{.OTTERS | default "otters"}}'
       REGISTRY: '{{.REGISTRY | default "ghcr.io/openotters/tools"}}'
       OUT_DIR: '{{.OUT_DIR | default "/tmp/otters-bin"}}'
+      VERSION_FLAG: '{{ if .VERSION }}-version {{.VERSION}}{{ end }}'
       TOOLS:
         sh: '{{ if .TOOL }}echo {{.TOOL}}{{ else }}ls vendor/*.yaml | xargs -n1 basename | sed s/.yaml//{{ end }}'
     cmds:
@@ -80,4 +81,5 @@ tasks:
           -registry {{.REGISTRY}}
           -out {{.OUT_DIR}}
           -otters {{.OTTERS}}
+          {{.VERSION_FLAG}}
           -push

@@ -3,51 +3,92 @@
 Tools we don't reimplement in Go — we package the upstream binary.
 
 Each `<name>.yaml` in this directory is a descriptor read by
-`cmd/bintool-vendor`. It says where to download the upstream binary
-for each `os/arch`, what SHA256 the download must hash to, and what
-metadata to bake into the resulting OCI BIN image.
+`cmd/bintool-vendor`. It describes one tool, possibly across multiple
+versions, and resolves to a multi-arch OCI BIN image per version.
 
-Drive the pipeline with `task tools:vendor:publish TOOL=<name>`.
+Drive the pipeline with:
+
+```sh
+task tools:vendor:publish TOOL=<name>                # all versions of one tool
+task tools:vendor:publish TOOL=<name> VERSION=x.y.z  # one version of one tool
+task tools:vendor:publish                            # all versions of every tool
+```
 
 ## Descriptor schema
 
 ```yaml
-name: yaegi                 # tool name (becomes /<name> inside the image)
-version: v0.16.1            # upstream version — used in URL substitution
-description: "..."          # one-line description, shown to LLMs as tool intent
-source: https://...         # upstream repo — stamped as image source
+name: <tool-name>            # required, top-level only
+description: "..."           # default; per-version override allowed
+source: https://...          # default; per-version override allowed
+usage: |                     # default; per-version override allowed
+  multi-line markdown content baked into the image as USAGE.md
 
-# Go template. Variables: .Version, .OS (linux|darwin), .Arch (amd64|arm64).
-url_template: "https://github.com/{owner}/{repo}/releases/download/{{.Version}}/{{.Version}}_{{.OS}}_{{.Arch}}.tar.gz"
+# ── Defaults inherited by every version unless overridden ──
+url_template: "https://.../{{.Version}}/{{.OS}}-{{.Arch}}.tar.gz"
+archive: tar.gz              # tar.gz | tar | zip | raw
+binary_in_archive: <path>    # required unless archive=raw
+os_alias:                    # only used when rendering URLs (checksums always use Go names)
+  darwin: macos
+arch_alias:
+  amd64: x86_64
 
-archive: tar.gz             # tar.gz | tar | zip | raw
-binary_in_archive: yaegi    # path of the binary inside the archive (omit for raw)
+# ── Version list. First entry implicitly gets `latest` ──
+versions:
+  - version: "1.8.1"
+    aliases: ["1.8", "1"]
+    checksums:
+      darwin/arm64: <sha256>
+      darwin/amd64: <sha256>
+      linux/arm64:  <sha256>
+      linux/amd64:  <sha256>
 
-checksums:
-  darwin/arm64: <sha256>
-  darwin/amd64: <sha256>
-  linux/arm64:  <sha256>
-  linux/amd64:  <sha256>
+  - version: "1.7.1"
+    aliases: ["1.7"]
+    checksums:
+      ...
 
-usage: |
-  Free-form markdown baked into the image as USAGE.md so the runtime
-  (and any LLM) can introspect the tool's expected I/O contract.
+  - version: "1.6.0"
+    # Override: pre-1.7 lived under stedolan/jq with a different layout.
+    url_template: "https://github.com/stedolan/jq/releases/download/jq-{{.Version}}/jq-{{.OS}}-{{.Arch}}.tar.gz"
+    archive: tar.gz
+    binary_in_archive: jq
+    os_alias:
+      darwin: osx
+    checksums:
+      ...
 ```
 
-## Why this exists
+## Merge & tag rules
 
-The original `tools:publish` pipeline only knows how to compile Go source
-under `cmd/tools/<name>`. That works for tools we can cleanly express as a
-Go program (`jq` via gojq, `sh` via u-root). It doesn't work for tools
-that have no usable Go-library form: kubectl, helm, ffmpeg, pandoc,
-crane, ast-grep, duckdb, etc.
+**Per-version override.** Any non-empty field on a version entry
+replaces the descriptor default for that field. Maps (`os_alias`,
+`arch_alias`, `checksums`) replace wholesale — there's no deep merge.
+If you want a one-key delta on `os_alias`, spell out the whole map on
+the version entry. Easier to reason about; harder to surprise.
 
-The vendored pipeline pulls upstream binaries instead. One descriptor
-per tool, one repackaging step. Image content is byte-identical to what
-the upstream project ships; we just wrap it in OCI BIN annotations so
-the openotters runtime can dispatch it.
+**Required on a version.** `version` (string), `checksums` (map keyed
+on Go-style `<os>/<arch>` for all four supported platforms). Everything
+else inherits.
 
-## The runtime contract
+**Tags pushed for one version.** Always `<name>:<version>`, plus
+everything in `aliases: []`. Plus `latest` for the *first* entry in
+`versions:` if and only if no version explicitly claims `latest` in
+its aliases.
+
+That last rule means:
+
+- New tool, only one version → automatic `latest`.
+- Multi-version tool, top is current → automatic `latest` on top.
+- Multi-version tool but you want `latest` pinned to an older
+  known-stable release → list `aliases: ["latest"]` on that version
+  and the implicit add stops.
+
+**Validation.** Two version entries can't claim the same alias
+(would silently move the tag); a version can't list its own version
+string as an alias (would pass `-t` twice to `otters bin build`); every
+version needs all four platform checksums.
+
+## The runtime contract this maps to
 
 The openotters runtime invokes BIN tools with two structured fields:
 

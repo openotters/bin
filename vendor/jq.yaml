@@ -1,25 +1,18 @@
 name: jq
-version: "1.8.1"
-description: "Process JSON with jq expressions. Pass the expression as args (e.g. ['.name']) and the JSON as stdin."
+description: "Process JSON with jq expressions. Pass the expression as args, the JSON as stdin."
 source: https://github.com/jqlang/jq
 
+# ── Defaults inherited by every version unless overridden ────────────────
 url_template: "https://github.com/jqlang/jq/releases/download/jq-{{.Version}}/jq-{{.OS}}-{{.Arch}}"
-
 archive: raw
 
 # Upstream publishes "macos" instead of Go's "darwin".
 os_alias:
   darwin: macos
 
-checksums:
-  darwin/arm64: a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603
-  darwin/amd64: e80dbe0d2a2597e3c11c404f03337b981d74b4a8504b70586c354b7697a7c27f
-  linux/arm64:  6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4
-  linux/amd64:  020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d
-
 usage: |
-  Process JSON with jq expressions. Upstream jq 1.x — full feature
-  set (date functions, SQL-style operators, --slurpfile, etc.).
+  Process JSON with jq expressions. Upstream jq — full feature set
+  (date functions, SQL-style operators, --slurpfile, etc.).
 
   The agent invokes this BIN with the jq expression(s) as `args`
   and the JSON document as `stdin`:
@@ -38,3 +31,13 @@ usage: |
 
   See https://jqlang.github.io/jq/manual/ for the full expression
   language and flags.
+
+# ── Version list. First entry implicitly gets the `latest` alias ─────────
+versions:
+  - version: "1.8.1"
+    aliases: ["1.8", "1"]
+    checksums:
+      darwin/arm64: a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603
+      darwin/amd64: e80dbe0d2a2597e3c11c404f03337b981d74b4a8504b70586c354b7697a7c27f
+      linux/arm64:  6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4
+      linux/amd64:  020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d
