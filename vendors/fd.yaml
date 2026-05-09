@@ -11,7 +11,7 @@ usage: |
   Find files / dirs by pattern, fast. Standard fd CLI:
 
       { "args": ["main.go"] }                    # find files matching "main.go"
-      { "args": ["-e", "yaml", "vendor/"] }      # find .yaml under vendor/
+      { "args": ["-e", "yaml", "vendors/"] }     # find .yaml under vendors/
       { "args": ["--changed-within", "1d"] }     # changed in last day
       { "args": ["-x", "wc", "-l"] }             # exec wc -l on each match
 

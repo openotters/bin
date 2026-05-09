@@ -45,7 +45,7 @@ Any OCI image can adopt these annotations. The annotation contract is defined in
 `pwd` `readlink` `realpath` `rm` `rmdir` `seq` `sh` `shasum` `sleep` `sort` `tail` `tee`
 `time` `touch` `tr` `true` `uname` `uniq` `wc` `wget` `which` `xargs` `yes`
 
-**Vendored upstream binaries** (`vendor/` pipeline) —
+**Vendored upstream binaries** (`vendors/` pipeline) —
 `crane` `fd` `gh` `helm` `jq` `kubectl` `pandoc` `rg` `yaegi` `yq`
 
 `jina` fetches URL content as clean markdown; `sh` is a minimal POSIX shell
@@ -87,7 +87,7 @@ on `$PATH` (or set `OTTERS=…`).
 For tools that aren't usable as a Go library (yaegi, kubectl, helm,
 ffmpeg, …), the **vendored pipeline** packages an upstream binary
 release instead. Each tool is one YAML descriptor under
-[`vendor/`](./vendor/) — the pipeline downloads, checksum-verifies,
+[`vendors/`](./vendors/) — the pipeline downloads, checksum-verifies,
 extracts, and repackages as a multi-arch OCI BIN image:
 
 ```sh
@@ -98,7 +98,7 @@ task tools:vendor:publish TOOL=yaegi
 task tools:vendor:publish
 ```
 
-See [`vendor/README.md`](./vendor/README.md) for the descriptor schema.
+See [`vendors/README.md`](./vendors/README.md) for the descriptor schema.
 
 For programmatic use, the `examples/` directory has runnable Go
 programs for each lifecycle stage (`build`, `info`, `pull`, `push`,

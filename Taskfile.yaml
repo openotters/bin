@@ -70,14 +70,14 @@ tasks:
       OUT_DIR: '{{.OUT_DIR | default "/tmp/otters-bin"}}'
       VERSION_FLAG: '{{ if .VERSION }}-version {{.VERSION}}{{ end }}'
       TOOLS:
-        sh: '{{ if .TOOL }}echo {{.TOOL}}{{ else }}ls vendor/*.yaml | xargs -n1 basename | sed s/.yaml//{{ end }}'
+        sh: '{{ if .TOOL }}echo {{.TOOL}}{{ else }}ls vendors/*.yaml | xargs -n1 basename | sed s/.yaml//{{ end }}'
     cmds:
       - go build -o {{.OUT_DIR}}/bintool-vendor ./cmd/bintool-vendor
       - mkdir -p {{.OUT_DIR}}
       - for: {var: TOOLS}
         cmd: >-
           {{.OUT_DIR}}/bintool-vendor
-          -descriptor vendor/{{.ITEM}}.yaml
+          -descriptor vendors/{{.ITEM}}.yaml
           -registry {{.REGISTRY}}
           -out {{.OUT_DIR}}
           -otters {{.OTTERS}}

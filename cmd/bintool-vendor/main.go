@@ -1,4 +1,4 @@
-// bintool-vendor reads a vendored-tool descriptor (vendor/<name>.yaml),
+// bintool-vendor reads a vendored-tool descriptor (vendors/<name>.yaml),
 // downloads the upstream binary for darwin/linux × amd64/arm64,
 // verifies SHA256 checksums, extracts each binary, and shells out to
 // `otters bin build` (and optionally `otters bin push`) to package the
@@ -12,7 +12,7 @@
 //
 // Usage:
 //
-//	bintool-vendor -descriptor vendor/jq.yaml -registry ghcr.io/openotters/tools \
+//	bintool-vendor -descriptor vendors/jq.yaml -registry ghcr.io/openotters/tools \
 //	    [-version 1.8.1] [-out /tmp/otters-bin] [-otters otters] [-push]
 package main
 
