@@ -337,6 +337,8 @@ github.com/openotters/agentfile v1.0.0-alpha.9 h1:UWlE6OPsLxLHR1eV7OemVmqpKhnmjH
 github.com/openotters/agentfile v1.0.0-alpha.9/go.mod h1:4AZClO7jTxsbNgmFkPuSNlZVf6nSKgdBZ+uWpmYMCLg=
 github.com/openotters/agentfile v1.0.0-alpha.14 h1:0o7oHltX/eJEplgHQk2PCUyEMqlZAO/B5PFADJxcdws=
 github.com/openotters/agentfile v1.0.0-alpha.14/go.mod h1:4AZClO7jTxsbNgmFkPuSNlZVf6nSKgdBZ+uWpmYMCLg=
+github.com/openotters/agentfile v1.0.0-alpha.19 h1:ycTaj2bjDnLsgIQs9PB7y+Afel3dXpRZvEZauL27r4g=
+github.com/openotters/agentfile v1.0.0-alpha.19/go.mod h1:4AZClO7jTxsbNgmFkPuSNlZVf6nSKgdBZ+uWpmYMCLg=
 github.com/otiai10/copy v1.2.0/go.mod h1:rrF5dJ5F0t/EWSYODDu4j9/vEeYHMkc8jt0zJChqQWw=
 github.com/otiai10/copy v1.14.0 h1:dCI/t1iTdYGtkvCuBG2BgR6KZa83PTclw4U5n2wAllU=
 github.com/otiai10/copy v1.14.0/go.mod h1:ECfuL02W+/FkTWZWgQqXPWZgW9oeKCSQ5qVfSc4qc4w=

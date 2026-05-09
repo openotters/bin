@@ -243,14 +243,7 @@ func buildPlatform(
 	// digest of every rootfs-bearing layer (only the bin layer
 	// here — the usage doc is metadata, not a rootfs layer, so it's
 	// excluded).
-	configLabels := map[string]string{
-		// LabelArtifactType mirrors manifest.ArtifactType into the
-		// image config so daemon-side listings (cli.ImageInspect →
-		// Config.Labels) can identify openotters bin tools without
-		// streaming the manifest blob via ImageSave. The two values
-		// must stay in sync.
-		spec.LabelArtifactType: spec.BinArtifactType,
-	}
+	configLabels := map[string]string{}
 	if opts.Source != "" {
 		// ghcr.io reads `org.opencontainers.image.source` from
 		// the image config Labels (Docker convention) and uses
