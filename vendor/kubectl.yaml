@@ -1,0 +1,37 @@
+name: kubectl
+description: "Kubernetes CLI. Pass kubectl subcommands and flags as args; --kubeconfig is read from the agent's env. Reads YAML manifests from stdin when args contain '-f -'."
+source: https://github.com/kubernetes/kubectl
+
+# Single binary, hosted at dl.k8s.io. OS = linux/darwin, arch = amd64/arm64
+# (matches Go conventions exactly — no aliases needed).
+url_template: "https://dl.k8s.io/release/{{.Version}}/bin/{{.OS}}/{{.Arch}}/kubectl"
+archive: raw
+
+usage: |
+  Kubernetes CLI. Standard kubectl invocation:
+
+      { "args": ["get", "pods", "-n", "kube-system"] }
+
+  Read manifests from stdin via `-f -`:
+
+      {
+        "args":  ["apply", "-f", "-"],
+        "stdin": "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: demo\n..."
+      }
+
+  Output formatting works as expected:
+
+      { "args": ["get", "deploy", "-o", "yaml"] }
+      { "args": ["get", "pods", "-o", "json"] }
+
+  The agent inherits the daemon's KUBECONFIG / current-context — no
+  in-band auth.
+
+versions:
+  - version: "v1.36.0"
+    aliases: ["v1.36", "v1"]
+    checksums:
+      darwin/arm64: 4bcf268eacdc1d2df74e37d86f639f27ca7dea3ae185b7b452b73b9fb5ddc14e
+      darwin/amd64: 06d7e9a3a26a326d43102c70b19f9d233db219d09890e558dbdc3647db732f06
+      linux/arm64:  9f9d9c44a7b5264515ac9da5991584e2395bd50662e651132337e7b4d0c56f8f
+      linux/amd64:  123d8c8844f46b1244c547fffb3c17180c0c26dac9890589fe7e67763298748e

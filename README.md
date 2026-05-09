@@ -37,16 +37,21 @@ Any OCI image can adopt these annotations. The annotation contract is defined in
 
 ## Tools
 
-49 ready-to-use tool binaries for AI agents, published at `ghcr.io/openotters/tools/{name}:latest`:
+52 ready-to-use tool binaries for AI agents, published at `ghcr.io/openotters/tools/{name}:latest`:
 
+**Coreutils & shell** (Go-source pipeline) —
 `base64` `basename` `cat` `chmod` `cp` `date` `dirname` `echo` `false` `find` `grep` `gzip`
-`head` `hostname` `id` `jina` `jq` `ln` `ls` `mkdir` `mktemp` `more` `mv` `ping` `printenv`
+`head` `hostname` `id` `jina` `ln` `ls` `mkdir` `mktemp` `more` `mv` `ping` `printenv`
 `pwd` `readlink` `realpath` `rm` `rmdir` `seq` `sh` `shasum` `sleep` `sort` `tail` `tee`
-`time` `touch` `tr` `true` `uname` `uniq` `wc` `wget` `which` `xargs` `yaegi` `yes`
+`time` `touch` `tr` `true` `uname` `uniq` `wc` `wget` `which` `xargs` `yes`
+
+**Vendored upstream binaries** (`vendor/` pipeline) —
+`helm` `jq` `kubectl` `yaegi` `yq`
 
 `jina` fetches URL content as clean markdown; `sh` is a minimal POSIX shell for
 agents that need to pipe or redirect between tools; `yaegi` is an embedded Go
-interpreter — the agent can run small Go programs without a compiler.
+interpreter (no compiler); `kubectl` / `helm` give k8s-aware agents a real
+toolchain.
 
 Each tool is a plain CLI — argv in, stdout out. When the openotters
 runtime invokes a BIN tool on behalf of an agent, it shell-splits the

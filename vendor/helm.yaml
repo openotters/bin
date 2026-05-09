@@ -1,0 +1,32 @@
+name: helm
+description: "Kubernetes package manager. Pass helm subcommands and flags as args; chart values are typically piped via --values - on stdin."
+source: https://github.com/helm/helm
+
+# Tarball at get.helm.sh; binary nested under <os>-<arch>/helm so the
+# binary_in_archive uses the same OS/Arch template substitution as the URL.
+url_template: "https://get.helm.sh/helm-{{.Version}}-{{.OS}}-{{.Arch}}.tar.gz"
+archive: tar.gz
+binary_in_archive: "{{.OS}}-{{.Arch}}/helm"
+
+usage: |
+  Kubernetes package manager. Standard helm invocation:
+
+      { "args": ["list", "-n", "kube-system"] }
+
+      { "args": ["template", "my-release", "./chart"] }
+
+      {
+        "args":  ["install", "my-release", "./chart", "--values", "-"],
+        "stdin": "image:\n  tag: v1.2.3\nreplicas: 3\n"
+      }
+
+  Inherits KUBECONFIG / current-context from the daemon's env.
+
+versions:
+  - version: "v4.1.4"
+    aliases: ["v4.1", "v4"]
+    checksums:
+      darwin/arm64: 7c2eca678e8001fa863cdf8cbf6ac1b3799f9404a89eb55c08260ef5732e658d
+      darwin/amd64: abf09c8503ad1d8ef76d3737a058c3456a998aae5f5966fce4bb3031aeb1654e
+      linux/arm64:  13d03672be289045d2ff00e4e345d61de1c6f21c1257a45955a30e8ae036d8f1
+      linux/amd64:  70b2c30a19da4db264dfd68c8a3664e05093a361cefd89572ffb36f8abfa3d09

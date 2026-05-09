@@ -361,7 +361,7 @@ func (r *Resolved) fetchPlatform(osName, arch, wantSHA, dest string) error {
 		return fmt.Errorf("checksum mismatch for %s: %w", url, err)
 	}
 
-	return r.extractBinary(tmp.Name(), dest)
+	return r.extractBinary(tmp.Name(), dest, osName, arch)
 }
 
 func (r *Resolved) renderURL(osName, arch string) (string, error) {
@@ -417,7 +417,11 @@ func verifySHA256(path, want string) error {
 	return nil
 }
 
-func (r *Resolved) extractBinary(archivePath, dest string) error {
+func (r *Resolved) extractBinary(archivePath, dest, osName, arch string) error {
+	binPath, err := r.renderBinaryPath(osName, arch)
+	if err != nil {
+		return fmt.Errorf("render binary_in_archive: %w", err)
+	}
 	switch r.Archive {
 	case "raw":
 		return copyFile(archivePath, dest)
@@ -432,18 +436,48 @@ func (r *Resolved) extractBinary(archivePath, dest string) error {
 			return err
 		}
 		defer func() { _ = gz.Close() }()
-		return extractFromTar(tar.NewReader(gz), r.BinaryInArchive, dest)
+		return extractFromTar(tar.NewReader(gz), binPath, dest)
 	case "tar":
 		f, err := os.Open(archivePath)
 		if err != nil {
 			return err
 		}
 		defer func() { _ = f.Close() }()
-		return extractFromTar(tar.NewReader(f), r.BinaryInArchive, dest)
+		return extractFromTar(tar.NewReader(f), binPath, dest)
 	case "zip":
-		return extractFromZip(archivePath, r.BinaryInArchive, dest)
+		return extractFromZip(archivePath, binPath, dest)
 	}
 	return fmt.Errorf("unknown archive type %q", r.Archive)
+}
+
+// renderBinaryPath expands {{.OS}} / {{.Arch}} / {{.Version}} in
+// `binary_in_archive` so descriptors can target archives whose binary
+// path varies per platform (helm: <os>-<arch>/helm, hugo: just `hugo`,
+// etc.). Plain strings without `{{` pass through unchanged.
+func (r *Resolved) renderBinaryPath(osName, arch string) (string, error) {
+	if r.BinaryInArchive == "" {
+		return "", nil
+	}
+	if !strings.Contains(r.BinaryInArchive, "{{") {
+		return r.BinaryInArchive, nil
+	}
+	t, err := template.New("bin").Parse(r.BinaryInArchive)
+	if err != nil {
+		return "", err
+	}
+	if alias, ok := r.OSAlias[osName]; ok {
+		osName = alias
+	}
+	if alias, ok := r.ArchAlias[arch]; ok {
+		arch = alias
+	}
+	var sb strings.Builder
+	err = t.Execute(&sb, map[string]string{
+		"Version": r.Version,
+		"OS":      osName,
+		"Arch":    arch,
+	})
+	return sb.String(), err
 }
 
 func extractFromTar(tr *tar.Reader, wantPath, dest string) error {

@@ -1,0 +1,35 @@
+name: yq
+description: "Query/modify YAML, JSON, TOML, XML, CSV with one tool. Pass the expression as args, the document as stdin."
+source: https://github.com/mikefarah/yq
+
+# Raw single binary, named yq_<os>_<arch> on the release page.
+url_template: "https://github.com/mikefarah/yq/releases/download/{{.Version}}/yq_{{.OS}}_{{.Arch}}"
+archive: raw
+
+usage: |
+  Process YAML / JSON / TOML / XML / CSV with mikefarah/yq.
+
+  Pass the expression(s) and any flags as `args`; pipe the source
+  document on `stdin`. Equivalent to `yq <args> <stdin>`.
+
+  Examples:
+
+      # Read a value
+      { "args": [".name"], "stdin": "name: lyon\ncountry: france" }
+
+      # Convert YAML to JSON
+      { "args": ["-o=json"], "stdin": "key: value" }
+
+      # Filter a list
+      { "args": [".items[] | select(.age > 30) | .name"], "stdin": "..." }
+
+  Full expression language: https://mikefarah.gitbook.io/yq/
+
+versions:
+  - version: "v4.53.2"
+    aliases: ["v4.53", "v4"]
+    checksums:
+      darwin/arm64: 541ba2287560df70f561955e2d7f7e1cd00cf2a15a884f6b5c87a4bfa887bc07
+      darwin/amd64: 616b0a0f6a5b79d746f05a169c2b9bb40dee00c605ef165b9a1c1681bba738ac
+      linux/arm64:  03061b2a50c7a498de2bbb92d7cb078ce433011f085a4994117c2726be4106ea
+      linux/amd64:  d56bf5c6819e8e696340c312bd70f849dc1678a7cda9c2ad63eebd906371d56b
