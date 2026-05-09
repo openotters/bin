@@ -8,6 +8,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/openotters/agentfile v1.0.0-alpha.9
+	github.com/traefik/yaegi v0.16.1
 	github.com/u-root/u-root v0.16.0
 	gopkg.in/yaml.v3 v3.0.1
 	mvdan.cc/sh/v3 v3.13.1

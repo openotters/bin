@@ -46,3 +46,24 @@ The vendored pipeline pulls upstream binaries instead. One descriptor
 per tool, one repackaging step. Image content is byte-identical to what
 the upstream project ships; we just wrap it in OCI BIN annotations so
 the openotters runtime can dispatch it.
+
+## When NOT to vendor
+
+The BIN runtime contract is **argv in, stdout out**: the agent's
+tool-call input string is shell-split and passed as positional
+arguments to the binary. So vendoring works only when the upstream
+CLI naturally accepts its meaningful input *as argv*.
+
+It does NOT work when the upstream CLI:
+
+- Reads input only from a file path or stdin (no `-e/--eval`-style
+  flag that takes the payload inline) — e.g. `yaegi`, where the agent
+  wants to send Go *source* but yaegi only takes a `.go` filename
+  or `run -` stdin. The runtime's argv-only path can't deliver source
+  through either channel.
+- Requires multi-stream IO or interactive prompts.
+
+For those, write a thin wrapper under `cmd/tools/<name>/` (Go source
+pipeline) that bridges argv → file/stdin and execs the upstream binary
+internally — or, if the tool ships as a Go library, embed it directly
+(this is what `cmd/tools/yaegi/` does).

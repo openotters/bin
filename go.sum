@@ -445,6 +445,8 @@ github.com/tomarrell/wrapcheck/v2 v2.12.0 h1:H/qQ1aNWz/eeIhxKAFvkfIA+N7YDvq6TWVF
 github.com/tomarrell/wrapcheck/v2 v2.12.0/go.mod h1:AQhQuZd0p7b6rfW+vUwHm5OMCGgp63moQ9Qr/0BpIWo=
 github.com/tommy-muehle/go-mnd/v2 v2.5.1 h1:NowYhSdyE/1zwK9QCLeRb6USWdoif80Ie+v+yU8u1Zw=
 github.com/tommy-muehle/go-mnd/v2 v2.5.1/go.mod h1:WsUAkMJMYww6l/ufffCD3m+P7LEvr8TnZn9lwVDlgzw=
+github.com/traefik/yaegi v0.16.1 h1:f1De3DVJqIDKmnasUF6MwmWv1dSEEat0wcpXhD2On3E=
+github.com/traefik/yaegi v0.16.1/go.mod h1:4eVhbPb3LnD2VigQjhYbEJ69vDRFdT2HQNrXx8eEwUY=
 github.com/u-root/u-root v0.16.0 h1:wY40O83MBVks97+Is0WlFlOPSwKQMIrWP9R1IsrExg8=
 github.com/u-root/u-root v0.16.0/go.mod h1:yL/XdSSW27PdGLgUh4MNRBy54mKM+TBLzpwiB4nwj90=
 github.com/u-root/uio v0.0.0-20240224005618-d2acac8f3701 h1:pyC9PaHYZFgEKFdlp3G8RaCKgVpHZnecvArXvPXcFkM=
