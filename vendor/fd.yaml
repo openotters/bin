@@ -1,0 +1,33 @@
+name: fd
+description: "Fast modern find replacement. Pass patterns/flags as args; defaults are agent-friendly (regex by default, ignores .git, fast)."
+source: https://github.com/sharkdp/fd
+
+# Same Rust-target-triple pattern as ripgrep.
+url_template: "https://github.com/sharkdp/fd/releases/download/{{.Version}}/fd-{{.Version}}-{{.Target}}.tar.gz"
+archive: tar.gz
+binary_in_archive: "fd-{{.Version}}-{{.Target}}/fd"
+
+usage: |
+  Find files / dirs by pattern, fast. Standard fd CLI:
+
+      { "args": ["main.go"] }                    # find files matching "main.go"
+      { "args": ["-e", "yaml", "vendor/"] }      # find .yaml under vendor/
+      { "args": ["--changed-within", "1d"] }     # changed in last day
+      { "args": ["-x", "wc", "-l"] }             # exec wc -l on each match
+
+  See https://github.com/sharkdp/fd#how-to-use
+
+versions:
+  - version: "v10.4.2"
+    aliases: ["v10.4", "v10"]
+    # Note: upstream dropped Intel macOS in v10. We ship the three
+    # platforms they still cut binaries for; agents on darwin/amd64
+    # fall back to /usr/bin/find or wait for fd to restore the target.
+    checksums:
+      darwin/arm64: 623dc0afc81b92e4d4606b380d7bc91916ba7b97814263e554d50923a39e480a
+      linux/arm64:  6c51f7c5446b3338b1e401ff15dc194c590bb2fa64fd43ff3278300f073adec5
+      linux/amd64:  def59805cd14b5651b68990855f426ad087f3b96881296d963910431ba3143c8
+    platforms:
+      darwin/arm64: { target: aarch64-apple-darwin }
+      linux/arm64:  { target: aarch64-unknown-linux-gnu }
+      linux/amd64:  { target: x86_64-unknown-linux-gnu }

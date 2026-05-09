@@ -1,0 +1,33 @@
+name: rg
+description: "ripgrep — fast, multiline, regex-aware grep. Pass argv (pattern + flags); --json output is parser-friendly. Supply input on stdin via 'rg -' or as paths in args."
+source: https://github.com/BurntSushi/ripgrep
+
+# URL embeds a Rust target triple, supplied per-platform via PlatformEntry.Target
+# so each (os/arch) selects the right tarball.
+url_template: "https://github.com/BurntSushi/ripgrep/releases/download/{{.Version}}/ripgrep-{{.Version}}-{{.Target}}.tar.gz"
+archive: tar.gz
+binary_in_archive: "ripgrep-{{.Version}}-{{.Target}}/rg"
+
+usage: |
+  Fast structured search. Standard ripgrep CLI:
+
+      { "args": ["TODO"] }                              # current dir
+      { "args": ["-n", "panic", "internal/"] }
+      { "args": ["--json", "func main", "."] }          # parser-friendly output
+      { "args": ["-i", "deprecated"], "stdin": "..." }  # read input from stdin
+
+  See https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md
+
+versions:
+  - version: "15.1.0"
+    aliases: ["15.1", "15"]
+    checksums:
+      darwin/arm64: 378e973289176ca0c6054054ee7f631a065874a352bf43f0fa60ef079b6ba715
+      darwin/amd64: 64811cb24e77cac3057d6c40b63ac9becf9082eedd54ca411b475b755d334882
+      linux/arm64:  2b661c6ef508e902f388e9098d9c4c5aca72c87b55922d94abdba830b4dc885e
+      linux/amd64:  1c9297be4a084eea7ecaedf93eb03d058d6faae29bbc57ecdaf5063921491599
+    platforms:
+      darwin/arm64: { target: aarch64-apple-darwin }
+      darwin/amd64: { target: x86_64-apple-darwin }
+      linux/arm64:  { target: aarch64-unknown-linux-gnu }
+      linux/amd64:  { target: x86_64-unknown-linux-musl }

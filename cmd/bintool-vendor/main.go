@@ -72,11 +72,32 @@ type VersionEntry struct {
 	ArchAlias       map[string]string `yaml:"arch_alias"`
 
 	Checksums map[string]string `yaml:"checksums"` // key: "<os>/<arch>" (Go convention)
+
+	// Per-platform overrides for upstreams that publish different
+	// archive types or URL paths per platform (gh ships .tar.gz on
+	// linux but .zip on macOS; pandoc has arch-specific paths). Keys
+	// are "<os>/<arch>" using Go conventions. Each value can override
+	// url_template / archive / binary_in_archive and supplies an
+	// optional `target` string injected as {{.Target}} into the
+	// templates (used by Rust tools whose URLs/paths embed the target
+	// triple, e.g. aarch64-apple-darwin).
+	Platforms map[string]PlatformEntry `yaml:"platforms"`
+}
+
+// PlatformEntry overrides the version defaults for one (os, arch).
+// Every field is optional — empty values inherit from the version.
+type PlatformEntry struct {
+	Target          string `yaml:"target"` // injected as {{.Target}} in templates
+	URLTemplate     string `yaml:"url_template"`
+	Archive         string `yaml:"archive"`
+	BinaryInArchive string `yaml:"binary_in_archive"`
 }
 
 // Resolved is one version flattened into the same shape the
 // download/extract/build code consumes — defaults already merged in,
-// final tag list computed.
+// final tag list computed. URLTemplate / Archive / BinaryInArchive
+// here are the version-level defaults; per-platform overrides are
+// applied at fetch time via Platform().
 type Resolved struct {
 	Name            string
 	Description     string
@@ -89,7 +110,47 @@ type Resolved struct {
 	OSAlias         map[string]string
 	ArchAlias       map[string]string
 	Checksums       map[string]string
+	Platforms       map[string]PlatformEntry
 	Tags            []string
+}
+
+// PlatformResolved is the effective configuration for one (os, arch)
+// pair after platform overrides land on top of version defaults.
+type PlatformResolved struct {
+	URLTemplate     string
+	Archive         string
+	BinaryInArchive string
+	Target          string
+	Checksum        string
+}
+
+// Platform resolves the version's defaults plus any override under
+// `versions[].platforms[<os>/<arch>]` into a single concrete config.
+func (r *Resolved) Platform(osName, arch string) (PlatformResolved, error) {
+	key := osName + "/" + arch
+	checksum, ok := r.Checksums[key]
+	if !ok {
+		return PlatformResolved{}, fmt.Errorf("missing checksum for %s", key)
+	}
+	pr := PlatformResolved{
+		URLTemplate:     r.URLTemplate,
+		Archive:         r.Archive,
+		BinaryInArchive: r.BinaryInArchive,
+		Checksum:        checksum,
+	}
+	if p, ok := r.Platforms[key]; ok {
+		if p.URLTemplate != "" {
+			pr.URLTemplate = p.URLTemplate
+		}
+		if p.Archive != "" {
+			pr.Archive = p.Archive
+		}
+		if p.BinaryInArchive != "" {
+			pr.BinaryInArchive = p.BinaryInArchive
+		}
+		pr.Target = p.Target
+	}
+	return pr, nil
 }
 
 // Platforms we always build for. Matches the existing tools:publish target.
@@ -150,21 +211,29 @@ func main() {
 func publish(r Resolved, registry, outDir, ottersBin string, push bool) error {
 	binaries := make(map[string]string, len(platforms))
 
+	// Iterate the canonical platform list but skip any platform the
+	// descriptor doesn't have a checksum for. Some upstreams have
+	// dropped less-popular platforms (fd ships no x86_64 macOS as of
+	// v10) — we don't want one missing target to block shipping the
+	// rest. At least one platform must be present.
 	for _, p := range platforms {
 		key := p.OS + "/" + p.Arch
-		want, ok := r.Checksums[key]
-		if !ok {
-			return fmt.Errorf("missing checksum for %s", key)
+		if _, ok := r.Checksums[key]; !ok {
+			continue
 		}
 
 		dest := filepath.Join(outDir, fmt.Sprintf("%s-%s-%s-%s", r.Name, r.Version, p.OS, p.Arch))
-		if err := r.fetchPlatform(p.OS, p.Arch, want, dest); err != nil {
+		if err := r.fetchPlatform(p.OS, p.Arch, dest); err != nil {
 			return fmt.Errorf("fetching %s: %w", key, err)
 		}
 		if err := os.Chmod(dest, 0o755); err != nil {
 			return fmt.Errorf("chmod %s: %w", dest, err)
 		}
 		binaries[key] = dest
+	}
+
+	if len(binaries) == 0 {
+		return fmt.Errorf("no platforms have checksums")
 	}
 
 	args := []string{"bin", "build", "-n", r.Name}
@@ -182,7 +251,9 @@ func publish(r Resolved, registry, outDir, ottersBin string, push bool) error {
 	}
 	for _, p := range platforms {
 		key := p.OS + "/" + p.Arch
-		args = append(args, fmt.Sprintf("%s:%s", key, binaries[key]))
+		if path, ok := binaries[key]; ok {
+			args = append(args, fmt.Sprintf("%s:%s", key, path))
+		}
 	}
 	if err := runCmd(ottersBin, args...); err != nil {
 		return fmt.Errorf("otters bin build: %w", err)
@@ -333,14 +404,20 @@ func (d *Descriptor) merge(v VersionEntry) Resolved {
 		OSAlias:         pickMap(v.OSAlias, d.OSAlias),
 		ArchAlias:       pickMap(v.ArchAlias, d.ArchAlias),
 		Checksums:       v.Checksums,
+		Platforms:       v.Platforms,
 		Tags:            tags,
 	}
 }
 
-func (r *Resolved) fetchPlatform(osName, arch, wantSHA, dest string) error {
-	url, err := r.renderURL(osName, arch)
+func (r *Resolved) fetchPlatform(osName, arch, dest string) error {
+	pr, err := r.Platform(osName, arch)
 	if err != nil {
 		return err
+	}
+
+	url, err := r.renderTemplate(pr.URLTemplate, osName, arch, pr.Target)
+	if err != nil {
+		return fmt.Errorf("render url_template: %w", err)
 	}
 
 	tmp, err := os.CreateTemp("", fmt.Sprintf("vendor-%s-%s-%s-%s-*", r.Name, r.Version, osName, arch))
@@ -357,15 +434,31 @@ func (r *Resolved) fetchPlatform(osName, arch, wantSHA, dest string) error {
 		return err
 	}
 
-	if err := verifySHA256(tmp.Name(), wantSHA); err != nil {
+	if err := verifySHA256(tmp.Name(), pr.Checksum); err != nil {
 		return fmt.Errorf("checksum mismatch for %s: %w", url, err)
 	}
 
-	return r.extractBinary(tmp.Name(), dest, osName, arch)
+	return r.extractBinary(tmp.Name(), dest, osName, arch, pr)
 }
 
-func (r *Resolved) renderURL(osName, arch string) (string, error) {
-	t, err := template.New("url").Parse(r.URLTemplate)
+// renderTemplate runs `tmpl` with the standard substitution set —
+// {{.Version}} / {{.OS}} / {{.Arch}} / {{.Target}} — applying os_alias
+// and arch_alias before substitution. `target` is the per-platform
+// string from PlatformEntry.Target (empty for tools that don't need
+// it).
+//
+// Available template funcs:
+//
+//	trimPrefix "v"   strips a leading "v" — for upstreams whose URL
+//	                 form drops the v even though the tag has one
+//	                 (gh ships gh_2.92.0_... but tags v2.92.0).
+//	trimSuffix "..." mirror of the above.
+func (r *Resolved) renderTemplate(tmpl, osName, arch, target string) (string, error) {
+	funcs := template.FuncMap{
+		"trimPrefix": func(prefix, s string) string { return strings.TrimPrefix(s, prefix) },
+		"trimSuffix": func(suffix, s string) string { return strings.TrimSuffix(s, suffix) },
+	}
+	t, err := template.New("vendor").Funcs(funcs).Parse(tmpl)
 	if err != nil {
 		return "", err
 	}
@@ -380,6 +473,7 @@ func (r *Resolved) renderURL(osName, arch string) (string, error) {
 		"Version": r.Version,
 		"OS":      osName,
 		"Arch":    arch,
+		"Target":  target,
 	})
 	return sb.String(), err
 }
@@ -417,12 +511,12 @@ func verifySHA256(path, want string) error {
 	return nil
 }
 
-func (r *Resolved) extractBinary(archivePath, dest, osName, arch string) error {
-	binPath, err := r.renderBinaryPath(osName, arch)
+func (r *Resolved) extractBinary(archivePath, dest, osName, arch string, pr PlatformResolved) error {
+	binPath, err := r.renderTemplate(pr.BinaryInArchive, osName, arch, pr.Target)
 	if err != nil {
 		return fmt.Errorf("render binary_in_archive: %w", err)
 	}
-	switch r.Archive {
+	switch pr.Archive {
 	case "raw":
 		return copyFile(archivePath, dest)
 	case "tar.gz":
@@ -447,37 +541,7 @@ func (r *Resolved) extractBinary(archivePath, dest, osName, arch string) error {
 	case "zip":
 		return extractFromZip(archivePath, binPath, dest)
 	}
-	return fmt.Errorf("unknown archive type %q", r.Archive)
-}
-
-// renderBinaryPath expands {{.OS}} / {{.Arch}} / {{.Version}} in
-// `binary_in_archive` so descriptors can target archives whose binary
-// path varies per platform (helm: <os>-<arch>/helm, hugo: just `hugo`,
-// etc.). Plain strings without `{{` pass through unchanged.
-func (r *Resolved) renderBinaryPath(osName, arch string) (string, error) {
-	if r.BinaryInArchive == "" {
-		return "", nil
-	}
-	if !strings.Contains(r.BinaryInArchive, "{{") {
-		return r.BinaryInArchive, nil
-	}
-	t, err := template.New("bin").Parse(r.BinaryInArchive)
-	if err != nil {
-		return "", err
-	}
-	if alias, ok := r.OSAlias[osName]; ok {
-		osName = alias
-	}
-	if alias, ok := r.ArchAlias[arch]; ok {
-		arch = alias
-	}
-	var sb strings.Builder
-	err = t.Execute(&sb, map[string]string{
-		"Version": r.Version,
-		"OS":      osName,
-		"Arch":    arch,
-	})
-	return sb.String(), err
+	return fmt.Errorf("unknown archive type %q", pr.Archive)
 }
 
 func extractFromTar(tr *tar.Reader, wantPath, dest string) error {

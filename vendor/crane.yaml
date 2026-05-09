@@ -1,0 +1,36 @@
+name: crane
+description: "Inspect, copy, list, mutate OCI images. The natural toolchain for any agent that reasons about openotters images themselves."
+source: https://github.com/google/go-containerregistry
+
+# Tarball at GitHub releases. OS uses Capitalized form (Darwin/Linux),
+# arch uses Rust-style x86_64 instead of amd64. Aliases handle both.
+url_template: "https://github.com/google/go-containerregistry/releases/download/{{.Version}}/go-containerregistry_{{.OS}}_{{.Arch}}.tar.gz"
+archive: tar.gz
+binary_in_archive: crane
+
+os_alias:
+  darwin: Darwin
+  linux:  Linux
+arch_alias:
+  amd64: x86_64
+
+usage: |
+  Read / copy / mutate OCI images from the agent's loop. Standard
+  crane subcommands work as-is:
+
+      { "args": ["manifest", "ghcr.io/openotters/runtime:latest"] }
+
+      { "args": ["ls", "ghcr.io/openotters/runtime"] }
+
+      { "args": ["copy", "src.example/image:tag", "dst.example/image:tag"] }
+
+  See https://github.com/google/go-containerregistry/blob/main/cmd/crane/doc/crane.md
+
+versions:
+  - version: "v0.21.5"
+    aliases: ["v0.21", "v0"]
+    checksums:
+      darwin/arm64: a41938cdbd8becc59e90f4bb491a557d52dce5681f9812c961854cab706f5f59
+      darwin/amd64: d5ad8d97d7c5407f761b4fd37801044473f58b79a033f6a64e84ce6d010c1b2c
+      linux/arm64:  3a47c6da5a0ba1ca7a93def41036d8f262a2160799e5d4ca25dba3cfa47dab41
+      linux/amd64:  9f823ae5ee25803161110f957b5fd4538f714d40cdf25dacb4914fefafd246bf

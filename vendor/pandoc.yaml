@@ -1,0 +1,48 @@
+name: pandoc
+description: "Universal document converter. Convert between markdown, html, docx, latex, pdf, etc. Source on stdin, format flags as args."
+source: https://github.com/jgm/pandoc
+
+# Linux: .tar.gz with `pandoc-<v>/bin/pandoc` inside.
+# macOS: .zip with `pandoc-<v>-<arch>/bin/pandoc` inside (arch = arm64 | x86_64).
+# Per-platform overrides handle the macOS divergence.
+url_template: "https://github.com/jgm/pandoc/releases/download/{{.Version}}/pandoc-{{.Version}}-linux-{{.Arch}}.tar.gz"
+archive: tar.gz
+binary_in_archive: "pandoc-{{.Version}}/bin/pandoc"
+
+usage: |
+  Universal document converter. Standard pandoc CLI:
+
+      # Markdown -> HTML
+      { "args": ["-f", "markdown", "-t", "html"], "stdin": "# Title\n\nbody" }
+
+      # HTML -> Markdown
+      { "args": ["-f", "html", "-t", "markdown"], "stdin": "<h1>Title</h1>" }
+
+      # Markdown -> docx (writes to a workspace file)
+      { "args": ["-f", "markdown", "-t", "docx", "-o", "out.docx"], "stdin": "..." }
+
+  Pandoc reads docx/odt/epub/etc. only when given a file path, not
+  stdin. For those, write the input to the agent's workspace first
+  and pass its path in args.
+
+  See https://pandoc.org/MANUAL.html
+
+versions:
+  - version: "3.9.0.2"
+    aliases: ["3.9", "3"]
+    checksums:
+      darwin/arm64: 6e9eca844076bcbb599bbeebbba78a70f93b5307782b85c2c272872812c88875
+      darwin/amd64: b9fbceabccbc8f34ac021a50483fc32f8160568d0b4b2c22d81bb29e3054fd82
+      linux/arm64:  b6d21e8f9c3b15744f5a7ab40248019157ed7793875dbe0383d4c82ff572b528
+      linux/amd64:  a69abfababda8a56969a254b09f9553a7be89ddec00d4e0fe9fd585d71a67508
+    platforms:
+      darwin/arm64:
+        target: arm64
+        url_template: "https://github.com/jgm/pandoc/releases/download/{{.Version}}/pandoc-{{.Version}}-{{.Target}}-macOS.zip"
+        archive: zip
+        binary_in_archive: "pandoc-{{.Version}}-{{.Target}}/bin/pandoc"
+      darwin/amd64:
+        target: x86_64
+        url_template: "https://github.com/jgm/pandoc/releases/download/{{.Version}}/pandoc-{{.Version}}-{{.Target}}-macOS.zip"
+        archive: zip
+        binary_in_archive: "pandoc-{{.Version}}-{{.Target}}/bin/pandoc"
