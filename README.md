@@ -37,15 +37,16 @@ Any OCI image can adopt these annotations. The annotation contract is defined in
 
 ## Tools
 
-48 ready-to-use tool binaries for AI agents, published at `ghcr.io/openotters/tools/{name}:latest`:
+49 ready-to-use tool binaries for AI agents, published at `ghcr.io/openotters/tools/{name}:latest`:
 
 `base64` `basename` `cat` `chmod` `cp` `date` `dirname` `echo` `false` `find` `grep` `gzip`
 `head` `hostname` `id` `jina` `jq` `ln` `ls` `mkdir` `mktemp` `more` `mv` `ping` `printenv`
 `pwd` `readlink` `realpath` `rm` `rmdir` `seq` `sh` `shasum` `sleep` `sort` `tail` `tee`
-`time` `touch` `tr` `true` `uname` `uniq` `wc` `wget` `which` `xargs` `yes`
+`time` `touch` `tr` `true` `uname` `uniq` `wc` `wget` `which` `xargs` `yaegi` `yes`
 
 `jina` fetches URL content as clean markdown; `sh` is a minimal POSIX shell for
-agents that need to pipe or redirect between tools.
+agents that need to pipe or redirect between tools; `yaegi` is an embedded Go
+interpreter — the agent can run small Go programs without a compiler.
 
 Each tool is a plain CLI — argv in, stdout out. When the openotters
 runtime invokes a BIN tool on behalf of an agent, it shell-splits the
@@ -75,6 +76,22 @@ OTTERS="go run ../openotters/cmd/otters" task tools:publish TOOL=jq
 
 The task wraps `otters bin build` + `otters bin push`; `otters` must be
 on `$PATH` (or set `OTTERS=…`).
+
+For tools that aren't usable as a Go library (yaegi, kubectl, helm,
+ffmpeg, …), the **vendored pipeline** packages an upstream binary
+release instead. Each tool is one YAML descriptor under
+[`vendor/`](./vendor/) — the pipeline downloads, checksum-verifies,
+extracts, and repackages as a multi-arch OCI BIN image:
+
+```sh
+# A single vendored tool
+task tools:vendor:publish TOOL=yaegi
+
+# Every vendored tool
+task tools:vendor:publish
+```
+
+See [`vendor/README.md`](./vendor/README.md) for the descriptor schema.
 
 For programmatic use, the `examples/` directory has runnable Go
 programs for each lifecycle stage (`build`, `info`, `pull`, `push`,

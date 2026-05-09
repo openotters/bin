@@ -61,3 +61,23 @@ tasks:
         linux/arm64:{{.OUT_DIR}}/{{.TOOL}}-linux-arm64
         linux/amd64:{{.OUT_DIR}}/{{.TOOL}}-linux-amd64
       - "{{.OTTERS}} bin push {{.REGISTRY}}/{{.TOOL}}:latest"
+
+  tools:vendor:publish:
+    desc: Package every vendored upstream binary in vendor/ (or just TOOL=name) and push to REGISTRY.
+    vars:
+      OTTERS: '{{.OTTERS | default "otters"}}'
+      REGISTRY: '{{.REGISTRY | default "ghcr.io/openotters/tools"}}'
+      OUT_DIR: '{{.OUT_DIR | default "/tmp/otters-bin"}}'
+      TOOLS:
+        sh: '{{ if .TOOL }}echo {{.TOOL}}{{ else }}ls vendor/*.yaml | xargs -n1 basename | sed s/.yaml//{{ end }}'
+    cmds:
+      - go build -o {{.OUT_DIR}}/bintool-vendor ./cmd/bintool-vendor
+      - mkdir -p {{.OUT_DIR}}
+      - for: {var: TOOLS}
+        cmd: >-
+          {{.OUT_DIR}}/bintool-vendor
+          -descriptor vendor/{{.ITEM}}.yaml
+          -registry {{.REGISTRY}}
+          -out {{.OUT_DIR}}
+          -otters {{.OTTERS}}
+          -push
