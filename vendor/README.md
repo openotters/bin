@@ -47,23 +47,18 @@ per tool, one repackaging step. Image content is byte-identical to what
 the upstream project ships; we just wrap it in OCI BIN annotations so
 the openotters runtime can dispatch it.
 
-## When NOT to vendor
+## The runtime contract
 
-The BIN runtime contract is **argv in, stdout out**: the agent's
-tool-call input string is shell-split and passed as positional
-arguments to the binary. So vendoring works only when the upstream
-CLI naturally accepts its meaningful input *as argv*.
+The openotters runtime invokes BIN tools with two structured fields:
 
-It does NOT work when the upstream CLI:
+- `args` — list of positional arguments passed as argv
+- `stdin` — content piped to the binary's stdin (optional)
 
-- Reads input only from a file path or stdin (no `-e/--eval`-style
-  flag that takes the payload inline) — e.g. `yaegi`, where the agent
-  wants to send Go *source* but yaegi only takes a `.go` filename
-  or `run -` stdin. The runtime's argv-only path can't deliver source
-  through either channel.
-- Requires multi-stream IO or interactive prompts.
+So vendoring works for any upstream CLI whose meaningful input is
+expressible as argv, stdin, or both. That covers nearly all real
+tools: kubectl / helm / crane (argv only), yaegi / pandoc / jq with
+`-` (argv + stdin), ffmpeg (`-i pipe:0`), and so on.
 
-For those, write a thin wrapper under `cmd/tools/<name>/` (Go source
-pipeline) that bridges argv → file/stdin and execs the upstream binary
-internally — or, if the tool ships as a Go library, embed it directly
-(this is what `cmd/tools/yaegi/` does).
+The few cases vendoring still can't handle: tools that need
+interactive multi-stream prompts or persistent state between calls.
+Those need a real Go wrapper under `cmd/tools/<name>/`.
