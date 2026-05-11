@@ -33,6 +33,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/ulikunitz/xz"
 	"gopkg.in/yaml.v3"
 )
 
@@ -531,6 +532,21 @@ func (r *Resolved) extractBinary(archivePath, dest, osName, arch string, pr Plat
 		}
 		defer func() { _ = gz.Close() }()
 		return extractFromTar(tar.NewReader(gz), binPath, dest)
+	case "tar.xz":
+		// xz-compressed tarballs are common for upstreams that ship
+		// static-linked single binaries (stunnel/static-curl,
+		// upstream curl releases). github.com/ulikunitz/xz is a pure
+		// Go decoder — small dep, no cgo, decompression-only.
+		f, err := os.Open(archivePath)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = f.Close() }()
+		xr, err := xz.NewReader(f)
+		if err != nil {
+			return err
+		}
+		return extractFromTar(tar.NewReader(xr), binPath, dest)
 	case "tar":
 		f, err := os.Open(archivePath)
 		if err != nil {

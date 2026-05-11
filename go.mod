@@ -6,8 +6,9 @@ require (
 	github.com/go-git/go-billy/v6 v6.0.0-20260328065524-593ae452e14d
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
-	github.com/openotters/agentfile v1.0.0-alpha.19
+	github.com/openotters/agentfile v1.0.0-alpha.28
 	github.com/u-root/u-root v0.16.0
+	github.com/ulikunitz/xz v0.5.15
 	gopkg.in/yaml.v3 v3.0.1
 	mvdan.cc/sh/v3 v3.13.1
 	oras.land/oras-go/v2 v2.6.0

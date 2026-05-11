@@ -1,0 +1,73 @@
+name: curl
+description: "curl — the canonical HTTP client. Statically-linked builds from stunnel/static-curl, no system openssl/libcurl needed. Same flag surface as system curl(1)."
+source: https://github.com/stunnel/static-curl
+
+# stunnel/static-curl ships per-platform tar.xz archives at
+# github.com/stunnel/static-curl/releases. The naming layout
+# varies per platform (linux gets a `-glibc` segment, macOS
+# doesn't; arch slugs are aarch64/x86_64 on linux and arm64/x86_64
+# on macOS) so each platform supplies a `target` that fills the
+# slot in the shared url_template. Single template, four targets.
+url_template: "https://github.com/stunnel/static-curl/releases/download/{{.Version | trimPrefix \"v\"}}/curl-{{.Target}}-{{.Version | trimPrefix \"v\"}}.tar.xz"
+archive: tar.xz
+binary_in_archive: "curl"
+
+usage: |
+  curl — the HTTP client. Pass standard curl(1) flags as args.
+  Common shapes the agent uses:
+
+  ### GET with auth header
+      {
+        "args": [
+          "-sS",
+          "-H", "Authorization: Bearer $HASS_TOKEN",
+          "$HASS_URL/api/states"
+        ]
+      }
+
+  ### POST JSON body
+      {
+        "args": [
+          "-sS", "-X", "POST",
+          "-H", "Authorization: Bearer $HASS_TOKEN",
+          "-H", "Content-Type: application/json",
+          "-d", "{\"entity_id\":\"light.kitchen\"}",
+          "$HASS_URL/api/services/light/turn_on"
+        ]
+      }
+
+  ### Useful flags
+      -s, --silent        no progress meter
+      -S, --show-error    show errors even when --silent (combine -sS)
+      -i, --include       prepend response headers to output
+      -L, --location      follow redirects
+      -f, --fail          exit non-zero on >=400 responses (no body)
+      -k, --insecure      skip TLS verification (self-signed hosts)
+      --connect-timeout S TCP/TLS handshake timeout
+      --max-time S        total request timeout
+      -X METHOD           HTTP method (default GET, POST when -d set)
+      -H "name: value"    request header (repeatable)
+      -d <data>           request body (string)
+      --data-binary @file body from file
+      -o <file>           write body to file (default: stdout)
+
+  ### Pair with sh + jq
+      sh -c 'curl -sS -H "Authorization: Bearer $HASS_TOKEN" "$HASS_URL/api/states" | jq ".[].entity_id"'
+
+versions:
+  - version: "v8.20.0"
+    aliases: ["v8.20", "v8"]
+    checksums:
+      darwin/arm64: b755bae28fa857ff6bb430d0d72ba9711c4d203a92eeacc63c49cd8b998aac26
+      darwin/amd64: e60044fde6174586c07c4ce6980227db97d076cb728e42740acdf004f99ac067
+      linux/arm64:  061b624119f128038bdfa96f975980d6c35ed502130c4825d59b3143efeafa0e
+      linux/amd64:  3cf20eb1bca2726d74a39fcda2b758a08a23a3dce73ad6f3f468d7e4d49d215b
+    platforms:
+      linux/arm64:
+        target: linux-aarch64-glibc
+      linux/amd64:
+        target: linux-x86_64-glibc
+      darwin/arm64:
+        target: macos-arm64
+      darwin/amd64:
+        target: macos-x86_64

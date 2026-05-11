@@ -7,24 +7,49 @@ archive: tar.gz
 binary_in_archive: yaegi
 
 usage: |
+  ## Usage
+  
   Run Go source under the embedded yaegi interpreter (a pure-Go
-  implementation of the Go language). No compiler, no module cache,
-  stdlib only.
-
-  The agent invokes this BIN by sending Go source via the `stdin`
-  field, with `args: ["run", "-"]` to tell yaegi to read source from
-  stdin. Stdout from the Go program flows back as the tool response.
-
-  Example tool call:
-
-      {
-        "args": ["run", "-"],
-        "stdin": "package main\nimport \"fmt\"\nfunc main() { fmt.Println(\"hi\") }"
-      }
-
-  Source must be a complete Go program (`package main` + `func main()`).
-  Stdlib only — no module fetches, no cgo. Each invocation runs in a
-  fresh interpreter; nothing persists between calls.
+  implementation of the Go language, v0.16.1). Stdlib only — no cgo,
+  no module fetches. Each invocation runs in a fresh interpreter;
+  nothing persists between calls.
+  
+  ### Primary form — full program via stdin
+  
+  Pass `args: ["run"]` and send a complete `package main` program on
+  stdin. This is the cleanest form: only your program's output is
+    returned.
+    
+    {
+      "args": ["run"],
+      "stdin": "package main\nimport \"fmt\"\nfunc main(){ fmt.Println(\"hi\") }"
+    }
+  
+  ### Quick one-liner — `-e`
+  
+  Pass `args: ["-e", "<statements>"]` to evaluate statements in an
+    implicit `main`. `fmt` is preloaded; additional `import` statements
+    are NOT permitted in this mode.
+    
+    { "args": ["-e", "for i:=0;i<3;i++ { fmt.Println(i) }"] }
+  
+  ### Other subcommands
+    
+    yaegi version            → prints "0.16.1"
+    yaegi help [cmd]         → usage info
+    yaegi test [path]        → run test funcs in a package
+    yaegi extract pkgs...    → generate wrapper file for a package
+  
+  ### Pitfalls
+  
+  - Stdin with NO args drops into a REPL-style mode that echoes
+    expression values and a trailing pointer. Always pass `["run"]`
+    when sending a full program on stdin.
+  - `run -e <src>` also leaks a trailing pointer to stdout. Use plain
+    `-e` for snippets, or `run` + stdin for full programs.
+  - In `-e` mode, put each statement on its own line; semicolons inside
+    one `-e` string can confuse the parser around imports.
+    ```
 
 versions:
   - version: "v0.16.1"
