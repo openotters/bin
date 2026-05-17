@@ -62,10 +62,10 @@ tasks:
       - >-
         {{.OTTERS}} bin build -n {{.TOOL}} -t {{.REGISTRY}}/{{.TOOL}}:latest
         -s "{{.SOURCE | default "https://github.com/openotters/bintool"}}"
-        --revision "{{.REVISION}}"
-        --licenses "MIT"
-        --vendor "openotters"
-        --url "https://github.com/openotters/bintool"
+        --image-revision "{{.REVISION}}"
+        --image-licenses "MIT"
+        --image-vendor "openotters"
+        --image-url "https://github.com/openotters/bintool"
         darwin/arm64:{{.OUT_DIR}}/{{.TOOL}}-darwin-arm64
         darwin/amd64:{{.OUT_DIR}}/{{.TOOL}}-darwin-amd64
         linux/arm64:{{.OUT_DIR}}/{{.TOOL}}-linux-arm64
