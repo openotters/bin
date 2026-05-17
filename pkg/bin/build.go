@@ -285,19 +285,32 @@ func buildPlatform(
 	// digest of every rootfs-bearing layer (only the bin layer
 	// here — the usage doc is metadata, not a rootfs layer, so it's
 	// excluded).
+	//
+	// Mirror every OCI annotation we stamp on the manifest into
+	// config.Labels too. Two reasons:
+	//
+	// 1. ghcr.io reads `org.opencontainers.image.source` from the
+	//    image config Labels (Docker convention) to auto-link the
+	//    package to its GitHub repo and inherit visibility.
+	// 2. The docker-backend Inspect path used by the openotters
+	//    daemon reads ONLY image config labels — it has no cheap way
+	//    to fetch manifest-level annotations from the moby SDK. So
+	//    every annotation we want visible via `otters bin inspect`
+	//    or the dashboard's Labels card has to land in config.Labels
+	//    too. Manifest annotations remain the canonical source for
+	//    OCI-aware tooling (crane / cosign / supply-chain scanners).
 	configLabels := map[string]string{}
-	if opts.Source != "" {
-		// ghcr.io reads `org.opencontainers.image.source` from
-		// the image config Labels (Docker convention) and uses
-		// it to auto-link the package to the named GitHub repo,
-		// inheriting the repo's visibility on first push. The
-		// same key as a manifest annotation is informational
-		// only — the linking happens via the LABEL, not the
-		// annotation.
-		configLabels["org.opencontainers.image.source"] = opts.Source
-	}
-	if opts.Description != "" {
-		configLabels["org.opencontainers.image.description"] = opts.Description
+	for k, v := range ociAnnotations(opts) {
+		// Skip the auto-stamped created — it's already on the image
+		// config's Created field (v1.Image.Created), so duplicating
+		// it as a label would just bloat the blob. Everything else
+		// (title-less per the spec note, plus source/description/
+		// version/revision/licenses/vendor/authors/url/documentation)
+		// goes through.
+		if k == v1.AnnotationCreated {
+			continue
+		}
+		configLabels[k] = v
 	}
 
 	imgConfig := v1.Image{
