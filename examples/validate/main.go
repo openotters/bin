@@ -1,6 +1,7 @@
 // Validate checks that an OCI ref points at a well-formed openotters
 // bin-tool image: the correct artifactType, the required
-// vnd.openotters.bin.* annotations, and a binary layer matching the
+// io.openotters.bin.* runtime annotations plus the OCI image-spec
+// keys (title, description, ...), and a binary layer matching the
 // declared name. Exits 0 on success, 1 with a readable report
 // otherwise.
 //
@@ -122,8 +123,8 @@ func checkAnnotations(r *checkReport, ann map[string]string) {
 		r.ok(spec.AnnotationBinPath + " = " + path)
 	}
 
-	if desc := ann[spec.AnnotationBinDescription]; desc != "" {
-		r.ok(spec.AnnotationBinDescription + " = " + desc)
+	if desc := ann[v1.AnnotationDescription]; desc != "" {
+		r.ok(v1.AnnotationDescription + " = " + desc)
 	}
 
 	if usage := ann[spec.AnnotationBinUsage]; usage != "" {

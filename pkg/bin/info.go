@@ -40,7 +40,7 @@ func Inspect(manifest v1.Manifest) Info {
 		info.Path = v
 	}
 
-	if v, ok := manifest.Annotations[spec.AnnotationBinDescription]; ok {
+	if v, ok := manifest.Annotations[v1.AnnotationDescription]; ok {
 		info.Description = v
 	}
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/go-git/go-billy/v6"
 	"github.com/go-git/go-billy/v6/memfs"
@@ -209,6 +210,171 @@ func TestBuildIndex_MultiPlatform(t *testing.T) {
 		BinPath: "jq",
 	}, platforms, store); rePushErr != nil {
 		t.Fatalf("BuildIndex (re-push): %v", rePushErr)
+	}
+}
+
+// TestBuild_OCIAnnotations covers the OCI image-spec annotation
+// surface. Every key with a non-empty BuildOptions field must land
+// on both the index and the per-platform manifest; unset fields
+// must NOT produce empty annotations (cleaner for `otters bin
+// inspect` output and matches the spec note that empty values are
+// allowed but absence is cleaner). The created annotation is
+// always present and parses as RFC 3339.
+func TestBuild_OCIAnnotations(t *testing.T) {
+	t.Parallel()
+
+	src := memfs.New()
+	f, _ := src.Create("jq")
+	_, _ = f.Write([]byte("fake-binary"))
+	_ = f.Close()
+
+	store := memory.New()
+
+	_, err := bin.Build(context.Background(), bin.BuildOptions{
+		Name:          "jq",
+		BinPath:       "jq",
+		Description:   "JSON processor",
+		Source:        "https://github.com/jqlang/jq",
+		Version:       "1.7.1",
+		Revision:      "abc123def456",
+		Licenses:      "MIT",
+		Vendor:        "jqlang",
+		Authors:       "stedolan@example.com",
+		URL:           "https://jqlang.org",
+		Documentation: "https://jqlang.org/manual",
+	}, src, store)
+	if err != nil {
+		t.Fatalf("build error: %v", err)
+	}
+
+	desc, err := store.Resolve(context.Background(), "latest")
+	if err != nil {
+		t.Fatalf("resolve error: %v", err)
+	}
+
+	indexBytes, err := fetchBytes(store, desc)
+	if err != nil {
+		t.Fatalf("fetch index: %v", err)
+	}
+
+	var index v1.Index
+	if uerr := json.Unmarshal(indexBytes, &index); uerr != nil {
+		t.Fatalf("unmarshal index: %v", uerr)
+	}
+
+	manifest, err := resolveManifest(t, store, desc)
+	if err != nil {
+		t.Fatalf("manifest error: %v", err)
+	}
+
+	want := map[string]string{
+		v1.AnnotationDescription:   "JSON processor",
+		v1.AnnotationSource:        "https://github.com/jqlang/jq",
+		v1.AnnotationVersion:       "1.7.1",
+		v1.AnnotationRevision:      "abc123def456",
+		v1.AnnotationLicenses:      "MIT",
+		v1.AnnotationVendor:        "jqlang",
+		v1.AnnotationAuthors:       "stedolan@example.com",
+		v1.AnnotationURL:           "https://jqlang.org",
+		v1.AnnotationDocumentation: "https://jqlang.org/manual",
+
+		// io.openotters.bin.name carries the binary filename for
+		// the puller. Distinct from image.title (human-readable
+		// display label) which is intentionally not auto-stamped
+		// from Name — the two concepts can diverge.
+		spec.AnnotationBinName: "jq",
+	}
+
+	// Index + per-platform manifest must carry the same OCI keys.
+	// Anything readable on the multi-arch entry must also be readable
+	// on the platform-specific entry so a single-platform pull and
+	// a multi-arch pull look the same from the consumer's side.
+	for _, target := range []struct {
+		name string
+		ann  map[string]string
+	}{
+		{"index", index.Annotations},
+		{"manifest", manifest.Annotations},
+	} {
+		for k, v := range want {
+			if got := target.ann[k]; got != v {
+				t.Errorf("%s annotation %s = %q, want %q", target.name, k, got, v)
+			}
+		}
+
+		if got := target.ann[v1.AnnotationCreated]; got == "" {
+			t.Errorf("%s missing %s", target.name, v1.AnnotationCreated)
+		} else if _, parseErr := time.Parse(time.RFC3339, got); parseErr != nil {
+			t.Errorf("%s %s = %q, not RFC 3339: %v", target.name, v1.AnnotationCreated, got, parseErr)
+		}
+
+		// io.openotters.bin.path is always stamped (defaults to "/").
+		if got := target.ann[spec.AnnotationBinPath]; got != spec.DefaultBinPath {
+			t.Errorf("%s %s = %q, want %q", target.name, spec.AnnotationBinPath, got, spec.DefaultBinPath)
+		}
+	}
+}
+
+// TestBuild_OptInAnnotationsAbsentWhenUnset is the negative half of
+// the surface check: when the caller passes empty strings for the
+// opt-in fields, those annotations MUST be absent from the produced
+// manifest entirely (rather than written as ""). Cleaner inspect
+// output and matches the spec hint about presence vs absence.
+func TestBuild_OptInAnnotationsAbsentWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	src := memfs.New()
+	f, _ := src.Create("jq")
+	_, _ = f.Write([]byte("fake-binary"))
+	_ = f.Close()
+
+	store := memory.New()
+
+	_, err := bin.Build(context.Background(), bin.BuildOptions{
+		Name:    "jq",
+		BinPath: "jq",
+	}, src, store)
+	if err != nil {
+		t.Fatalf("build error: %v", err)
+	}
+
+	desc, err := store.Resolve(context.Background(), "latest")
+	if err != nil {
+		t.Fatalf("resolve error: %v", err)
+	}
+
+	manifest, err := resolveManifest(t, store, desc)
+	if err != nil {
+		t.Fatalf("manifest error: %v", err)
+	}
+
+	mustBeAbsent := []string{
+		v1.AnnotationTitle, // not auto-stamped from Name; intentional
+		v1.AnnotationDescription,
+		v1.AnnotationSource,
+		v1.AnnotationVersion,
+		v1.AnnotationRevision,
+		v1.AnnotationLicenses,
+		v1.AnnotationVendor,
+		v1.AnnotationAuthors,
+		v1.AnnotationURL,
+		v1.AnnotationDocumentation,
+	}
+	for _, key := range mustBeAbsent {
+		if _, present := manifest.Annotations[key]; present {
+			t.Errorf("expected %s absent when unset, got value %q",
+				key, manifest.Annotations[key])
+		}
+	}
+
+	// bin.name (binary filename for the puller) and created are
+	// always expected — name from opts.Name, created auto-stamped.
+	if manifest.Annotations[spec.AnnotationBinName] != "jq" {
+		t.Errorf("%s = %q, want jq",
+			spec.AnnotationBinName, manifest.Annotations[spec.AnnotationBinName])
+	}
+	if _, ok := manifest.Annotations[v1.AnnotationCreated]; !ok {
+		t.Errorf("missing %s", v1.AnnotationCreated)
 	}
 }
 

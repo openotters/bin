@@ -96,8 +96,8 @@ func TestExtract_TarLayer(t *testing.T) {
 
 	manifest := v1.Manifest{
 		Annotations: map[string]string{
-			"vnd.openotters.bin.name": "jq",
-			"vnd.openotters.bin.path": "/usr/bin",
+			"io.openotters.bin.name": "jq",
+			"io.openotters.bin.path": "/usr/bin",
 		},
 		Layers: []v1.Descriptor{{
 			MediaType: "application/vnd.oci.image.layer.v1.tar",
@@ -135,8 +135,8 @@ func TestExtract_TarGzipLayer(t *testing.T) {
 
 	manifest := v1.Manifest{
 		Annotations: map[string]string{
-			"vnd.openotters.bin.name": "jq",
-			"vnd.openotters.bin.path": "/usr/bin",
+			"io.openotters.bin.name": "jq",
+			"io.openotters.bin.path": "/usr/bin",
 		},
 		Layers: []v1.Descriptor{{
 			MediaType: "application/vnd.oci.image.layer.v1.tar+gzip",
@@ -172,8 +172,8 @@ func TestExtract_NoMatchingLayer(t *testing.T) {
 
 	manifest := v1.Manifest{
 		Annotations: map[string]string{
-			"vnd.openotters.bin.name": "jq",
-			"vnd.openotters.bin.path": "/usr/bin",
+			"io.openotters.bin.name": "jq",
+			"io.openotters.bin.path": "/usr/bin",
 		},
 		Layers: []v1.Descriptor{{
 			MediaType: "application/vnd.oci.image.layer.v1.tar",

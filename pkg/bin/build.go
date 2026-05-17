@@ -30,7 +30,7 @@ import (
 type BuildOptions struct {
 	Name        string
 	BinPath     string // path to read the binary from src filesystem
-	Path        string // vnd.openotters.bin.path (default "/")
+	Path        string // io.openotters.bin.path (default "/")
 	Description string
 	Usage       string
 	// Source is the URL of the upstream repo. When set, gets
@@ -41,6 +41,69 @@ type BuildOptions struct {
 	// between "public package" and "manually flip private→public
 	// in the UI for every tool".
 	Source string
+
+	// OCI image-spec predefined annotations. Each is optional; an
+	// empty string omits the annotation from the manifest rather
+	// than writing a useless empty value. Name stamps the
+	// openotters-specific io.openotters.bin.name (the binary
+	// filename); image-level OCI title is intentionally not
+	// auto-derived from Name — a human-readable image title can
+	// differ from the binary's filename. Description, Source map
+	// to the matching OCI keys (auto). created is auto-stamped at
+	// build time from buildTimestamp().
+	Version       string // org.opencontainers.image.version (e.g. v1.0.0-alpha.23)
+	Revision      string // org.opencontainers.image.revision (git SHA)
+	Licenses      string // org.opencontainers.image.licenses (SPDX expression)
+	Vendor        string // org.opencontainers.image.vendor
+	Authors       string // org.opencontainers.image.authors
+	URL           string // org.opencontainers.image.url
+	Documentation string // org.opencontainers.image.documentation
+}
+
+// ociAnnotations builds the map of standard OCI image-spec
+// annotations stamped on every manifest the build emits (both the
+// index and each per-platform manifest). Auto-stamped keys —
+// created, title, description, source — go on whenever the
+// corresponding BuildOptions field is populated; the optional keys
+// (version, revision, licenses, vendor, authors, url, documentation)
+// are written only when the caller passed a non-empty value, so an
+// unset flag omits the annotation rather than writing "".
+//
+// openotters-namespace keys (io.openotters.bin.{path,usage}) live
+// alongside these but are populated at the call sites because they
+// depend on path / usage state the helper doesn't see.
+func ociAnnotations(opts BuildOptions) map[string]string {
+	out := map[string]string{
+		v1.AnnotationCreated: buildTimestamp().Format(time.RFC3339),
+	}
+	if opts.Description != "" {
+		out[v1.AnnotationDescription] = opts.Description
+	}
+	if opts.Source != "" {
+		out[v1.AnnotationSource] = opts.Source
+	}
+	if opts.Version != "" {
+		out[v1.AnnotationVersion] = opts.Version
+	}
+	if opts.Revision != "" {
+		out[v1.AnnotationRevision] = opts.Revision
+	}
+	if opts.Licenses != "" {
+		out[v1.AnnotationLicenses] = opts.Licenses
+	}
+	if opts.Vendor != "" {
+		out[v1.AnnotationVendor] = opts.Vendor
+	}
+	if opts.Authors != "" {
+		out[v1.AnnotationAuthors] = opts.Authors
+	}
+	if opts.URL != "" {
+		out[v1.AnnotationURL] = opts.URL
+	}
+	if opts.Documentation != "" {
+		out[v1.AnnotationDocumentation] = opts.Documentation
+	}
+	return out
 }
 
 // Build is a single-platform convenience that wraps BuildIndex
@@ -101,13 +164,12 @@ func BuildIndex(
 		manifests = append(manifests, desc)
 	}
 
-	// Mirror the per-platform manifest's bin annotations onto the
-	// index so consumers can Inspect either shape and get the same
-	// info — Build (single-platform → index of one) and BuildIndex
+	// Mirror the per-platform manifest's annotations onto the index
+	// so consumers can Inspect either shape and get the same info —
+	// Build (single-platform → index of one) and BuildIndex
 	// (multi-platform) become indistinguishable downstream.
-	indexAnnotations := map[string]string{
-		spec.AnnotationBinName: opts.Name,
-	}
+	indexAnnotations := ociAnnotations(opts)
+	indexAnnotations[spec.AnnotationBinName] = opts.Name
 
 	binPath := opts.Path
 	if binPath == "" {
@@ -115,20 +177,8 @@ func BuildIndex(
 	}
 	indexAnnotations[spec.AnnotationBinPath] = binPath
 
-	if opts.Description != "" {
-		indexAnnotations[spec.AnnotationBinDescription] = opts.Description
-	}
-
 	if opts.Usage != "" {
 		indexAnnotations[spec.AnnotationBinUsage] = spec.DefaultUsagePath
-	}
-
-	if opts.Description != "" {
-		indexAnnotations[v1.AnnotationDescription] = opts.Description
-	}
-
-	if opts.Source != "" {
-		indexAnnotations[v1.AnnotationSource] = opts.Source
 	}
 
 	index := v1.Index{
@@ -165,9 +215,11 @@ func BuildIndex(
 // buildPlatform produces a real OCI image for one platform: layer is
 // a gzipped tar containing the binary at /<name>, config is a valid
 // v1.Image with rootfs.diff_ids + Architecture/OS so Docker engines
-// can run / image-mount / inspect the result. The bin annotations
-// (vnd.openotters.bin.*) live alongside the standard image fields so
-// custom tooling that reads them still works.
+// can run / image-mount / inspect the result. OCI image-spec
+// annotations (org.opencontainers.image.*) carry the predefined
+// metadata; openotters runtime extras (io.openotters.bin.path,
+// io.openotters.bin.usage) live alongside in the reverse-DNS
+// custom namespace the spec reserves for ecosystem keys.
 //
 //nolint:funlen // full Docker-image assembly inline; splitting fragments the data flow
 func buildPlatform(
@@ -198,19 +250,9 @@ func buildPlatform(
 		binPath = spec.DefaultBinPath
 	}
 
-	annotations := map[string]string{
-		spec.AnnotationBinName: opts.Name,
-		spec.AnnotationBinPath: binPath,
-	}
-
-	if opts.Description != "" {
-		annotations[spec.AnnotationBinDescription] = opts.Description
-		annotations[v1.AnnotationDescription] = opts.Description
-	}
-
-	if opts.Source != "" {
-		annotations[v1.AnnotationSource] = opts.Source
-	}
+	annotations := ociAnnotations(opts)
+	annotations[spec.AnnotationBinName] = opts.Name
+	annotations[spec.AnnotationBinPath] = binPath
 
 	binLayerDesc, err := pushBlob(ctx, dst, v1.MediaTypeImageLayerGzip, gzBytes, map[string]string{
 		// Keep AnnotationTitle so the Puller's blob-by-title fast
